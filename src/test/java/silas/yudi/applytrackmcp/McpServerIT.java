@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,14 +45,18 @@ class McpServerIT {
             "platform", "WhatsApp",
             "link", "https://beta.com/jobs/2");
 
+    // Uma tabela nova por teste: cada um começa sem candidaturas
+    private final String tableName = "test-" + UUID.randomUUID();
+
     private McpSyncClient client;
 
-    // Um processo novo por teste: cada um começa sem candidaturas
     @BeforeEach
     void startServer() {
         var java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         var parameters = ServerParameters.builder(java)
-                .args("-jar", System.getProperty("app.jar"), "--logging.file.name=target/mcp-server-it.log")
+                .args("-jar", System.getProperty("app.jar"), "--logging.file.name=target/mcp-server-it.log",
+                        "--applytrack.dynamodb.endpoint=" + DynamoDbLocalContainer.endpoint(),
+                        "--applytrack.dynamodb.table-name=" + tableName)
                 .build();
         client = McpClient.sync(new StdioClientTransport(parameters, McpJsonDefaults.getMapper()))
                 .requestTimeout(Duration.ofSeconds(30))
@@ -139,6 +144,16 @@ class McpServerIT {
         // A mensagem vem da validação do schema e muda com o idioma: não é verificada
         assertThat(call(REGISTER, invalid).isError()).isTrue();
         assertThat(search(Map.of())).isEmpty();
+    }
+
+    @Test
+    void keepsApplicationsAfterServerRestart() throws IOException {
+        register(ACME);
+
+        stopServer();
+        startServer();
+
+        assertThat(search(Map.of())).containsExactly(ACME);
     }
 
     private void register(Map<String, Object> application) {
