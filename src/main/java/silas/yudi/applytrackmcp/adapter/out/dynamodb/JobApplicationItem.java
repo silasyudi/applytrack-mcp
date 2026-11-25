@@ -4,6 +4,7 @@ import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 
+import java.util.List;
 import java.time.LocalDate;
 
 /** Formato gravado no DynamoDB. Não sai deste adaptador. O SDK exige classe com getters e setters. */
@@ -17,6 +18,7 @@ public class JobApplicationItem {
     private String platform;
     private String link;
     private LocalDate appliedOn;
+    private List<RequirementItem> requirements;
 
     static JobApplicationItem from(JobApplication application) {
         var item = new JobApplicationItem();
@@ -27,11 +29,13 @@ public class JobApplicationItem {
         item.setPlatform(application.platform());
         item.setLink(application.link());
         item.setAppliedOn(application.appliedOn());
+        item.setRequirements(application.requirements().stream().map(RequirementItem::from).toList());
         return item;
     }
 
     JobApplication toDomain() {
-        return new JobApplication(id, company, jobTitle, description, platform, link, appliedOn);
+        return new JobApplication(id, company, jobTitle, description, platform, link, appliedOn,
+                requirements == null ? List.of() : requirements.stream().map(RequirementItem::toDomain).toList());
     }
 
     @DynamoDbPartitionKey
@@ -89,5 +93,13 @@ public class JobApplicationItem {
 
     public void setAppliedOn(LocalDate appliedOn) {
         this.appliedOn = appliedOn;
+    }
+
+    public List<RequirementItem> getRequirements() {
+        return requirements;
+    }
+
+    public void setRequirements(List<RequirementItem> requirements) {
+        this.requirements = requirements;
     }
 }

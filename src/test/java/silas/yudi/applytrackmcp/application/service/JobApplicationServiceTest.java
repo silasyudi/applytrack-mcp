@@ -47,9 +47,9 @@ class JobApplicationServiceTest {
     }
 
     private final JobApplication acme = new JobApplication(
-            "Acme", "Java Developer", "Full description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
+            "Acme", "Java Developer", "Full description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20), List.of());
     private final JobApplication solucoes = new JobApplication(
-            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Full description", "WhatsApp", null, LocalDate.of(2026, 11, 20));
+            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Full description", "WhatsApp", null, LocalDate.of(2026, 11, 20), List.of());
 
     @Test
     void registersApplicationOnce() {
@@ -64,7 +64,7 @@ class JobApplicationServiceTest {
     @ValueSource(strings = {"Soluções Beta", "solucoes", "SOLUÇÕES", " beta "})
     void findsTermOnlyInCompanyIgnoringCaseAndAccents(String term) {
         var inCompany = new JobApplication("Soluções Beta", "Analista", "Vaga administrativa", "Gupy", null,
-                LocalDate.of(2026, 11, 20));
+                LocalDate.of(2026, 11, 20), List.of());
         when(repository.findAll()).thenReturn(List.of(acme, inCompany));
 
         assertThat(service.search(term)).containsExactly(inCompany);
@@ -74,7 +74,7 @@ class JobApplicationServiceTest {
     @ValueSource(strings = {"senior", "SÊNIOR", "desenvolvedora", " Pessoa Desenvolvedora "})
     void findsTermOnlyInJobTitleIgnoringCaseAndAccents(String term) {
         var inTitle = new JobApplication("Gama", "Pessoa Desenvolvedora Sênior", "Vaga administrativa", "Gupy", null,
-                LocalDate.of(2026, 11, 20));
+                LocalDate.of(2026, 11, 20), List.of());
         when(repository.findAll()).thenReturn(List.of(acme, inTitle));
 
         assertThat(service.search(term)).containsExactly(inTitle);
@@ -85,7 +85,7 @@ class JobApplicationServiceTest {
     @ValueSource(strings = {"Kafka", "kafka", "microsservicos", "MICROSSERVIÇOS", " Spring Boot "})
     void findsTermOnlyInDescriptionIgnoringCaseAndAccents(String term) {
         var inDescription = new JobApplication("Gama", "Desenvolvedor de Software Sênior",
-                "Requisitos:\n- Java com Spring Boot\n- Microsserviços e Kafka", "Gupy", null, LocalDate.of(2026, 11, 20));
+                "Requisitos:\n- Java com Spring Boot\n- Microsserviços e Kafka", "Gupy", null, LocalDate.of(2026, 11, 20), List.of());
         when(repository.findAll()).thenReturn(List.of(acme, inDescription));
 
         assertThat(service.search(term)).containsExactly(inDescription);
@@ -94,7 +94,7 @@ class JobApplicationServiceTest {
     @Test
     void returnsOnceAnApplicationThatMatchesInEveryField() {
         var everywhere = new JobApplication(
-                "Java House", "Java Developer", "Java 25", "Gupy", null, LocalDate.of(2026, 11, 20));
+                "Java House", "Java Developer", "Java 25", "Gupy", null, LocalDate.of(2026, 11, 20), List.of());
         when(repository.findAll()).thenReturn(List.of(everywhere, solucoes));
 
         assertThat(service.search("java")).containsExactly(everywhere);
@@ -103,7 +103,7 @@ class JobApplicationServiceTest {
     @Test
     void returnsOnceAnApplicationThatRepeatsTheTermInTheSameField() {
         var repeated = new JobApplication("Gama", "Analista", "Kafka, Kafka Streams e Kafka Connect", "Gupy", null,
-                LocalDate.of(2026, 11, 20));
+                LocalDate.of(2026, 11, 20), List.of());
         when(repository.findAll()).thenReturn(List.of(repeated, acme));
 
         assertThat(service.search("kafka")).containsExactly(repeated);
@@ -171,7 +171,7 @@ class JobApplicationServiceTest {
     @Test
     void updatesAndSavesApplication() {
         var expected = new JobApplication(acme.id(), "Acme", "Analyst", "Full description", "Gupy",
-                "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
+                "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20), List.of());
         when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
         assertThat(service.update(acme.id(), titleChange("Analyst"))).isEqualTo(expected);
@@ -215,7 +215,7 @@ class JobApplicationServiceTest {
 
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> service.update(
-                        acme.id(), new JobApplicationChanges(null, null, null, null, null, null)))
+                        acme.id(), new JobApplicationChanges(null, null, null, null, null, null, null)))
                 .withMessage("Informe ao menos um campo para alterar");
         verifyNoMoreInteractions(repository);
     }
@@ -223,11 +223,11 @@ class JobApplicationServiceTest {
     @Test
     void updatesAllFieldsAndSaves() {
         var expected = new JobApplication(acme.id(), "Beta", "Analyst", "New description", "WhatsApp",
-                "https://beta.com", LocalDate.of(2026, 11, 21));
+                "https://beta.com", LocalDate.of(2026, 11, 21), List.of());
         when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
         assertThat(service.update(acme.id(), new JobApplicationChanges("Beta", "Analyst", "New description",
-                "WhatsApp", "https://beta.com", LocalDate.of(2026, 11, 21)))).isEqualTo(expected);
+                "WhatsApp", "https://beta.com", LocalDate.of(2026, 11, 21), null))).isEqualTo(expected);
         verify(repository).save(expected);
         verifyNoMoreInteractions(repository);
     }
@@ -256,7 +256,7 @@ class JobApplicationServiceTest {
     @ValueSource(strings = {"2026-11-24", "2026-11-25"})
     void updatesDateToYesterdayOrToday(LocalDate date) {
         var expected = new JobApplication(acme.id(), "Acme", "Java Developer", "Full description", "Gupy",
-                "https://acme.com/jobs/1", date);
+                "https://acme.com/jobs/1", date, List.of());
         when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
         assertThat(service.update(acme.id(), dateChange(date))).isEqualTo(expected);
@@ -278,7 +278,7 @@ class JobApplicationServiceTest {
     void updatesOtherFieldsOfApplicationThatAlreadyHasFutureDate() {
         var wrong = datedOn(LocalDate.of(2099, 1, 1));
         var expected = new JobApplication(wrong.id(), "Acme", "Analyst", "Full description", "Gupy", null,
-                LocalDate.of(2099, 1, 1));
+                LocalDate.of(2099, 1, 1), List.of());
         when(repository.findById(wrong.id())).thenReturn(Optional.of(wrong));
 
         assertThat(service.update(wrong.id(), titleChange("Analyst"))).isEqualTo(expected);
@@ -286,7 +286,7 @@ class JobApplicationServiceTest {
     }
 
     private static JobApplicationChanges dateChange(LocalDate date) {
-        return new JobApplicationChanges(null, null, null, null, null, date);
+        return new JobApplicationChanges(null, null, null, null, null, date, null);
     }
 
     @Test
@@ -319,10 +319,10 @@ class JobApplicationServiceTest {
     }
 
     private static JobApplicationChanges titleChange(String jobTitle) {
-        return new JobApplicationChanges(null, jobTitle, null, null, null, null);
+        return new JobApplicationChanges(null, jobTitle, null, null, null, null, null);
     }
 
     private static JobApplication datedOn(LocalDate date) {
-        return new JobApplication("Acme", "Java Developer", "Full description", "Gupy", null, date);
+        return new JobApplication("Acme", "Java Developer", "Full description", "Gupy", null, date, List.of());
     }
 }

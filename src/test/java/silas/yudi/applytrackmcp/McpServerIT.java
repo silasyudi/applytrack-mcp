@@ -40,7 +40,8 @@ class McpServerIT {
             "description", "Acme description",
             "platform", "Gupy",
             "link", "https://acme.com/jobs/1",
-            "appliedOn", "2026-11-19");
+            "appliedOn", "2026-11-19",
+            "requirements", List.of());
 
     // Acentos também provam que o texto sobrevive ao stdio no Windows
     private static final Map<String, Object> BETA = Map.of(
@@ -49,7 +50,10 @@ class McpServerIT {
             "description", "Descrição completa",
             "platform", "WhatsApp",
             "link", "https://beta.com/jobs/2",
-            "appliedOn", "2026-11-20");
+            "appliedOn", "2026-11-20",
+            "requirements", List.of(
+                    Map.of("name", "Java", "level", "Avançado", "importance", "REQUIRED"),
+                    Map.of("name", "Inglês", "level", "C1", "importance", "DESIRABLE")));
 
     // Uma tabela nova por teste: cada um começa sem candidaturas
     private final String tableName = "test-" + UUID.randomUUID();
@@ -241,7 +245,8 @@ class McpServerIT {
                 "description", "Nova descrição",
                 "platform", "LinkedIn",
                 "link", "https://gama.com/jobs/3",
-                "appliedOn", "2026-11-18");
+                "appliedOn", "2026-11-18",
+                "requirements", List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED")));
 
         var arguments = new HashMap<>(changed);
         arguments.put("id", id);
@@ -405,6 +410,110 @@ class McpServerIT {
         assertThat(text(blank).lines().distinct()).containsExactly("Campo obrigatório: id");
 
         assertThat(call(GET, Map.of()).isError()).isTrue();
+    }
+
+    @Test
+    void searchSummaryIncludesRequirements() throws IOException {
+        register(BETA);
+
+        var found = search(Map.of("term", "beta"));
+
+        assertThat(found).hasSize(1);
+        assertThat(found.getFirst().get("requirements")).isEqualTo(BETA.get("requirements"));
+    }
+
+    @Test
+    void storesRequirementWithoutLevel() throws IOException {
+        var application = new HashMap<>(ACME);
+        application.put("requirements", List.of(Map.of("name", "Node.js", "importance", "UNSPECIFIED")));
+        register(application);
+
+        var requirement = new HashMap<String, Object>();
+        requirement.put("name", "Node.js");
+        requirement.put("level", null);
+        requirement.put("importance", "UNSPECIFIED");
+        var expected = new HashMap<>(ACME);
+        expected.put("requirements", List.of(requirement));
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void registersApplicationWithoutRequirements() throws IOException {
+        var withoutRequirements = new HashMap<>(BETA);
+        withoutRequirements.remove("requirements");
+        register(withoutRequirements);
+
+        var expected = new HashMap<>(BETA);
+        expected.put("requirements", List.of());
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    // A IA precisa classificar cada requisito, nem que seja como UNSPECIFIED
+    @Test
+    void rejectsRequirementWithoutImportanceOrNameAndRegistersNothing() throws IOException {
+        var withoutImportance = new HashMap<>(ACME);
+        withoutImportance.put("requirements", List.of(Map.of("name", "Java")));
+        var withoutName = new HashMap<>(ACME);
+        withoutName.put("requirements", List.of(Map.of("importance", "REQUIRED")));
+
+        assertThat(call(REGISTER, withoutImportance).isError()).isTrue();
+        assertThat(call(REGISTER, withoutName).isError()).isTrue();
+        assertThat(searchAndGet(Map.of())).isEmpty();
+    }
+
+    @Test
+    void rejectsBlankRequirementNameAndRegistersNothing() throws IOException {
+        var invalid = new HashMap<>(ACME);
+        invalid.put("requirements", List.of(Map.of("name", " ", "importance", "REQUIRED")));
+
+        var result = call(REGISTER, invalid);
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result).lines().distinct()).containsExactly("Campo obrigatório: requirement.name");
+        assertThat(searchAndGet(Map.of())).isEmpty();
+    }
+
+    @Test
+    void rejectsUnknownImportanceAndRegistersNothing() throws IOException {
+        var invalid = new HashMap<>(ACME);
+        invalid.put("requirements", List.of(Map.of("name", "Java", "importance", "OBRIGATORIO")));
+
+        assertThat(call(REGISTER, invalid).isError()).isTrue();
+        assertThat(searchAndGet(Map.of())).isEmpty();
+    }
+
+    @Test
+    void updateReplacesRequirementsAndKeepsTheOtherFields() throws IOException {
+        register(BETA);
+        var kafka = List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "DESIRABLE"));
+
+        assertThat(call(UPDATE, Map.of("id", idOf("beta"), "requirements", kafka)).isError()).isFalse();
+
+        var expected = new HashMap<>(BETA);
+        expected.put("requirements", kafka);
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void updateWithEmptyRequirementsRemovesThem() throws IOException {
+        register(BETA);
+
+        assertThat(call(UPDATE, Map.of("id", idOf("beta"), "requirements", List.of())).isError()).isFalse();
+
+        var expected = new HashMap<>(BETA);
+        expected.put("requirements", List.of());
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void updateWithoutRequirementsKeepsThem() throws IOException {
+        register(BETA);
+
+        assertThat(call(UPDATE, Map.of("id", idOf("beta"), "jobTitle", "Analista")).isError()).isFalse();
+
+        var expected = new HashMap<>(BETA);
+        expected.put("jobTitle", "Analista");
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
     }
 
     private void register(Map<String, Object> application) {

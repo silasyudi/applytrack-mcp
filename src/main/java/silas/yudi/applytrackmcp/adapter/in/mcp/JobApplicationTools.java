@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import silas.yudi.applytrackmcp.application.service.JobApplicationService;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
+import silas.yudi.applytrackmcp.domain.model.Requirement;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -30,8 +31,9 @@ public class JobApplicationTools {
             @McpToolParam(description = "Descrição completa da vaga, sem resumir") String description,
             @McpToolParam(description = "Por onde se candidatou: Gupy, LinkedIn, e-mail, WhatsApp etc.") String platform,
             @McpToolParam(description = "Link da vaga, se houver", required = false) String link,
-            @McpToolParam(description = "Data em que o usuário se candidatou, no formato AAAA-MM-DD. Se ele não disse quando, pergunte") String appliedOn) {
-        var application = new JobApplication(company, jobTitle, description, platform, link, parseRequiredDate(appliedOn));
+            @McpToolParam(description = "Data em que o usuário se candidatou, no formato AAAA-MM-DD. Se ele não disse quando, pergunte") String appliedOn,
+            @McpToolParam(description = "Requisitos citados na descrição da vaga: tecnologias, idiomas, certificações. Extraia só o que está escrito, sem inventar", required = false) List<RequirementInput> requirements) {
+        var application = new JobApplication(company, jobTitle, description, platform, link, parseRequiredDate(appliedOn), toDomain(requirements));
         service.register(application);
         return "Candidatura registrada: %s - %s".formatted(application.company(), application.jobTitle());
     }
@@ -68,10 +70,11 @@ public class JobApplicationTools {
             @McpToolParam(description = "Nova descrição completa da vaga, sem resumir", required = false) String description,
             @McpToolParam(description = "Nova plataforma", required = false) String platform,
             @McpToolParam(description = "Novo link; texto vazio remove o link", required = false) String link,
-            @McpToolParam(description = "Nova data da candidatura, no formato AAAA-MM-DD", required = false) String appliedOn) {
+            @McpToolParam(description = "Nova data da candidatura, no formato AAAA-MM-DD", required = false) String appliedOn,
+            @McpToolParam(description = "Requisitos citados na descrição da vaga: tecnologias, idiomas, certificações. Extraia só o que está escrito, sem inventar. Se enviada, substitui a lista inteira; lista vazia remove todos", required = false) List<RequirementInput> requirements) {
         var date = appliedOn == null ? null : parseRequiredDate(appliedOn);
         var updated = service.update(
-                id, new JobApplicationChanges(company, jobTitle, description, platform, link, date));
+                id, new JobApplicationChanges(company, jobTitle, description, platform, link, date, toDomain(requirements)));
         return "Candidatura atualizada: %s - %s".formatted(updated.company(), updated.jobTitle());
     }
 
@@ -84,6 +87,10 @@ public class JobApplicationTools {
             @McpToolParam(description = "Id da candidatura, obtido na busca") String id) {
         var deleted = service.delete(id);
         return "Candidatura removida: %s - %s".formatted(deleted.company(), deleted.jobTitle());
+    }
+
+    private static List<Requirement> toDomain(List<RequirementInput> requirements) {
+        return requirements == null ? null : requirements.stream().map(RequirementInput::toDomain).toList();
     }
 
     private static LocalDate parseRequiredDate(String date) {

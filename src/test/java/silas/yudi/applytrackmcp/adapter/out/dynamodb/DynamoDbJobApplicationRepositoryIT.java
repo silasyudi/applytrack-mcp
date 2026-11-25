@@ -4,7 +4,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import silas.yudi.applytrackmcp.DynamoDbLocalContainer;
+import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
+import silas.yudi.applytrackmcp.domain.model.Requirement;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -14,6 +16,8 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
+import java.util.Map;
+import java.util.List;
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -25,9 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DynamoDbJobApplicationRepositoryIT {
 
     private final JobApplication acme = new JobApplication(
-            "Acme", "Java Developer", "Acme description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
+            "Acme", "Java Developer", "Acme description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20), List.of());
     private final JobApplication beta = new JobApplication(
-            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Descrição com\nduas linhas e 🚀", "WhatsApp", null, LocalDate.of(2026, 11, 20));
+            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Descrição com\nduas linhas e 🚀", "WhatsApp", null, LocalDate.of(2026, 11, 20), List.of());
 
     private DynamoDbClient client;
     private DynamoDbTable<JobApplicationItem> table;
@@ -83,7 +87,7 @@ class DynamoDbJobApplicationRepositoryIT {
     @Test
     void doesNotOverwriteAnEqualApplicationWithAnotherId() {
         var sameData = new JobApplication("Acme", "Java Developer", "Acme description", "Gupy",
-                "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
+                "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20), List.of());
         repository.save(acme);
         repository.save(sameData);
 
@@ -94,7 +98,7 @@ class DynamoDbJobApplicationRepositoryIT {
     @Test
     void readsMoreThanOnePage() {
         var large = IntStream.range(0, 5)
-                .mapToObj(i -> new JobApplication("Company " + i, "Java Developer", "x".repeat(300_000), "Gupy", null, LocalDate.of(2026, 11, 20)))
+                .mapToObj(i -> new JobApplication("Company " + i, "Java Developer", "x".repeat(300_000), "Gupy", null, LocalDate.of(2026, 11, 20), List.of()))
                 .toList();
         large.forEach(repository::save);
 
@@ -128,7 +132,7 @@ class DynamoDbJobApplicationRepositoryIT {
     @Test
     void replacesApplicationWithTheSameIdAndRemovesTheLink() {
         var changed = new JobApplication(acme.id(), "Acme", "Analyst", "New description", "LinkedIn", null,
-                LocalDate.of(2026, 11, 21));
+                LocalDate.of(2026, 11, 21), List.of());
         repository.save(acme);
         repository.save(beta);
         repository.save(changed);
@@ -154,5 +158,32 @@ class DynamoDbJobApplicationRepositoryIT {
         repository.deleteById("unknown");
 
         assertThat(repository.findAll()).containsExactly(acme);
+    }
+
+    @Test
+    void savesAndReadsRequirementsInOrderWithEveryImportanceAndMissingLevel() {
+        var withRequirements = new JobApplication("Acme", "Java Developer", "Description", "Gupy", null,
+                LocalDate.of(2026, 11, 20), List.of(
+                        new Requirement("Java", "Avançado", Importance.REQUIRED),
+                        new Requirement("Inglês", "C1", Importance.DESIRABLE),
+                        new Requirement("Node.js", null, Importance.UNSPECIFIED)));
+        repository.save(withRequirements);
+
+        assertThat(repository.findById(withRequirements.id())).contains(withRequirements);
+    }
+
+    // Formato gravado antes da lista existir
+    @Test
+    void readsItemSavedWithoutRequirements() {
+        client.putItem(request -> request.tableName(table.tableName()).item(Map.of(
+                "id", AttributeValue.fromS("1"),
+                "company", AttributeValue.fromS("Acme"),
+                "jobTitle", AttributeValue.fromS("Java Developer"),
+                "description", AttributeValue.fromS("Description"),
+                "platform", AttributeValue.fromS("Gupy"),
+                "appliedOn", AttributeValue.fromS("2026-11-20"))));
+
+        assertThat(repository.findAll()).containsExactly(new JobApplication(
+                "1", "Acme", "Java Developer", "Description", "Gupy", null, LocalDate.of(2026, 11, 20), List.of()));
     }
 }

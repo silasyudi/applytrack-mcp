@@ -1,11 +1,13 @@
 package silas.yudi.applytrackmcp.domain.model;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /** Platform é texto livre: Gupy, LinkedIn, e-mail, WhatsApp etc. */
 public record JobApplication(String id, String company, String jobTitle, String description, String platform,
-                             String link, LocalDate appliedOn) {
+                             String link, LocalDate appliedOn, List<Requirement> requirements) {
 
     public JobApplication {
         id = required("id", id);
@@ -17,12 +19,13 @@ public record JobApplication(String id, String company, String jobTitle, String 
         if (appliedOn == null) {
             throw new IllegalArgumentException("Campo obrigatório: appliedOn");
         }
+        requirements = requirements == null ? List.of() : copyOf(requirements);
     }
 
     /** Candidatura nova: recebe um id aleatório. */
     public JobApplication(String company, String jobTitle, String description, String platform, String link,
-                          LocalDate appliedOn) {
-        this(UUID.randomUUID().toString(), company, jobTitle, description, platform, link, appliedOn);
+                          LocalDate appliedOn, List<Requirement> requirements) {
+        this(UUID.randomUUID().toString(), company, jobTitle, description, platform, link, appliedOn, requirements);
     }
 
     public JobApplication update(JobApplicationChanges changes) {
@@ -36,7 +39,15 @@ public record JobApplication(String id, String company, String jobTitle, String 
                 changed(changes.description(), description),
                 changed(changes.platform(), platform),
                 changed(changes.link(), link),
-                changed(changes.appliedOn(), appliedOn));
+                changed(changes.appliedOn(), appliedOn),
+                changed(changes.requirements(), requirements));
+    }
+
+    private static List<Requirement> copyOf(List<Requirement> requirements) {
+        if (requirements.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("Campo obrigatório: requirement");
+        }
+        return List.copyOf(requirements);
     }
 
     private static <T> T changed(T newValue, T currentValue) {
