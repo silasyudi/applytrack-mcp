@@ -6,6 +6,8 @@ import org.springframework.stereotype.Component;
 import silas.yudi.applytrackmcp.application.service.JobApplicationService;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 /** As descrições são lidas pela IA para decidir qual tool usar e como preencher os parâmetros. */
@@ -26,8 +28,9 @@ public class JobApplicationTools {
             @McpToolParam(description = "Nome do cargo, como no anúncio") String jobTitle,
             @McpToolParam(description = "Descrição completa da vaga, sem resumir") String description,
             @McpToolParam(description = "Por onde se candidatou: Gupy, LinkedIn, e-mail, WhatsApp etc.") String platform,
-            @McpToolParam(description = "Link da vaga, se houver", required = false) String link) {
-        var application = new JobApplication(company, jobTitle, description, platform, link);
+            @McpToolParam(description = "Link da vaga, se houver", required = false) String link,
+            @McpToolParam(description = "Data em que o usuário se candidatou, no formato AAAA-MM-DD. Se ele não disse quando, pergunte") String appliedOn) {
+        var application = new JobApplication(company, jobTitle, description, platform, link, parseDate(appliedOn));
         service.register(application);
         return "Candidatura registrada: %s - %s".formatted(application.company(), application.jobTitle());
     }
@@ -39,5 +42,16 @@ public class JobApplicationTools {
     public List<JobApplication> searchJobApplications(
             @McpToolParam(description = "Trecho do nome da empresa ou do cargo", required = false) String term) {
         return service.search(term);
+    }
+
+    private static LocalDate parseDate(String date) {
+        if (date == null || date.isBlank()) {
+            return null; // o domínio recusa
+        }
+        try {
+            return LocalDate.parse(date.strip());
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Data inválida: " + date + ". Use o formato AAAA-MM-DD");
+        }
     }
 }

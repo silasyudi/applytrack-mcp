@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import silas.yudi.applytrackmcp.application.port.out.JobApplicationRepository;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,9 +29,9 @@ class JobApplicationServiceTest {
     private JobApplicationService service;
 
     private final JobApplication acme = new JobApplication(
-            "Acme", "Java Developer", "Full description", "Gupy", "https://acme.com/jobs/1");
+            "Acme", "Java Developer", "Full description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
     private final JobApplication solucoes = new JobApplication(
-            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Full description", "WhatsApp", null);
+            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Full description", "WhatsApp", null, LocalDate.of(2026, 11, 20));
 
     @Test
     void registersApplicationOnce() {
@@ -62,5 +63,18 @@ class JobApplicationServiceTest {
         when(repository.findAll()).thenReturn(List.of(acme, solucoes));
 
         assertThat(service.search(term)).containsExactly(acme, solucoes);
+    }
+
+    @Test
+    void sortsByMostRecent() {
+        var older = datedOn(LocalDate.of(2026, 10, 31));
+        var newer = datedOn(LocalDate.of(2026, 11, 1));
+        when(repository.findAll()).thenReturn(List.of(older, newer));
+
+        assertThat(service.search("acme")).containsExactly(newer, older);
+    }
+
+    private static JobApplication datedOn(LocalDate date) {
+        return new JobApplication("Acme", "Java Developer", "Full description", "Gupy", null, date);
     }
 }

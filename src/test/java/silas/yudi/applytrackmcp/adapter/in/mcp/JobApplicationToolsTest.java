@@ -2,12 +2,16 @@ package silas.yudi.applytrackmcp.adapter.in.mcp;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import silas.yudi.applytrackmcp.application.service.JobApplicationService;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,12 +30,12 @@ class JobApplicationToolsTest {
     private JobApplicationTools tools;
 
     private final JobApplication acme = new JobApplication(
-            "Acme", "Java Developer", "Full description", "Gupy", "https://acme.com/jobs/1");
+            "Acme", "Java Developer", "Full description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
 
     @Test
     void registersApplicationAndConfirms() {
         var message = tools.registerJobApplication(
-                acme.company(), acme.jobTitle(), acme.description(), acme.platform(), acme.link());
+                acme.company(), acme.jobTitle(), acme.description(), acme.platform(), acme.link(), "2026-11-20");
 
         verify(service).register(acme);
         assertThat(message).isEqualTo("Candidatura registrada: Acme - Java Developer");
@@ -40,14 +44,35 @@ class JobApplicationToolsTest {
     @Test
     void doesNotRegisterInvalidApplication() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> tools.registerJobApplication(" ", "Java Developer", "Description", "Gupy", null))
+                .isThrownBy(() -> tools.registerJobApplication(" ", "Java Developer", "Description", "Gupy", null, "2026-11-20"))
                 .withMessage("Campo obrigatório: company");
+        verifyNoInteractions(service);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void requiresDateAndRegistersNothing(String appliedOn) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> tools.registerJobApplication(
+                        "Acme", "Java Developer", "Description", "Gupy", null, appliedOn))
+                .withMessage("Campo obrigatório: appliedOn");
+        verifyNoInteractions(service);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"20/11/2026", "2026-02-30", "ontem"})
+    void rejectsInvalidDateAndRegistersNothing(String appliedOn) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> tools.registerJobApplication(
+                        "Acme", "Java Developer", "Description", "Gupy", null, appliedOn))
+                .withMessage("Data inválida: " + appliedOn + ". Use o formato AAAA-MM-DD");
         verifyNoInteractions(service);
     }
 
     @Test
     void returnsAllApplicationsFound() {
-        var acmeLabs = new JobApplication("Acme Labs", "Analyst", "Another description", "WhatsApp", null);
+        var acmeLabs = new JobApplication("Acme Labs", "Analyst", "Another description", "WhatsApp", null, LocalDate.of(2026, 11, 20));
         when(service.search("acme")).thenReturn(List.of(acme, acmeLabs));
 
         assertThat(tools.searchJobApplications("acme")).containsExactly(acme, acmeLabs);

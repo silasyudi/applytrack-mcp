@@ -12,8 +12,10 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -23,9 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DynamoDbJobApplicationRepositoryIT {
 
     private final JobApplication acme = new JobApplication(
-            "Acme", "Java Developer", "Acme description", "Gupy", "https://acme.com/jobs/1");
+            "Acme", "Java Developer", "Acme description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
     private final JobApplication beta = new JobApplication(
-            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Descrição com\nduas linhas e 🚀", "WhatsApp", null);
+            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Descrição com\nduas linhas e 🚀", "WhatsApp", null, LocalDate.of(2026, 11, 20));
 
     private DynamoDbClient client;
     private DynamoDbTable<JobApplicationItem> table;
@@ -90,11 +92,19 @@ class DynamoDbJobApplicationRepositoryIT {
     @Test
     void readsMoreThanOnePage() {
         var large = IntStream.range(0, 5)
-                .mapToObj(i -> new JobApplication("Company " + i, "Java Developer", "x".repeat(300_000), "Gupy", null))
+                .mapToObj(i -> new JobApplication("Company " + i, "Java Developer", "x".repeat(300_000), "Gupy", null, LocalDate.of(2026, 11, 20)))
                 .toList();
         large.forEach(repository::save);
 
         assertThat(table.scan().stream().count()).isGreaterThan(1);
         assertThat(repository.findAll()).containsExactlyInAnyOrderElementsOf(large);
+    }
+
+    @Test
+    void storesDateAsIsoText() {
+        repository.save(acme);
+
+        var item = client.scan(request -> request.tableName(table.tableName())).items().getFirst();
+        assertThat(item.get("appliedOn")).isEqualTo(AttributeValue.fromS("2026-11-20"));
     }
 }

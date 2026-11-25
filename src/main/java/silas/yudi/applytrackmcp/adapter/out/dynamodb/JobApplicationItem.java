@@ -4,6 +4,7 @@ import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /** Formato gravado no DynamoDB. Não sai deste adaptador. O SDK exige classe com getters e setters. */
@@ -16,6 +17,7 @@ public class JobApplicationItem {
     private String description;
     private String platform;
     private String link;
+    private LocalDate appliedOn;
 
     static JobApplicationItem from(JobApplication application) {
         var item = new JobApplicationItem();
@@ -25,11 +27,12 @@ public class JobApplicationItem {
         item.setDescription(application.description());
         item.setPlatform(application.platform());
         item.setLink(application.link());
+        item.setAppliedOn(application.appliedOn());
         return item;
     }
 
     JobApplication toDomain() {
-        return new JobApplication(company, jobTitle, description, platform, link);
+        return new JobApplication(company, jobTitle, description, platform, link, appliedOn);
     }
 
     @DynamoDbPartitionKey
@@ -79,5 +82,13 @@ public class JobApplicationItem {
 
     public void setLink(String link) {
         this.link = link;
+    }
+
+    public LocalDate getAppliedOn() {
+        return appliedOn;
+    }
+
+    public void setAppliedOn(LocalDate appliedOn) {
+        this.appliedOn = appliedOn;
     }
 }

@@ -4,10 +4,14 @@ import silas.yudi.applytrackmcp.application.port.out.JobApplicationRepository;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 
 import java.text.Normalizer;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
 public class JobApplicationService {
+
+    private static final Comparator<JobApplication> MOST_RECENT_FIRST =
+            Comparator.comparing(JobApplication::appliedOn).reversed();
 
     private final JobApplicationRepository repository;
 
@@ -19,12 +23,13 @@ public class JobApplicationService {
         repository.save(application);
     }
 
-    /** Busca por trecho da empresa ou do cargo; sem termo, lista tudo. */
+    /** Busca por trecho da empresa ou do cargo; sem termo, lista tudo. Mais recentes primeiro. */
     public List<JobApplication> search(String term) {
         var normalizedTerm = term == null ? "" : normalize(term);
         return repository.findAll().stream()
                 .filter(application -> normalize(application.company()).contains(normalizedTerm)
                         || normalize(application.jobTitle()).contains(normalizedTerm))
+                .sorted(MOST_RECENT_FIRST)
                 .toList();
     }
 

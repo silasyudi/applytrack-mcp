@@ -35,7 +35,8 @@ class McpServerIT {
             "jobTitle", "Java Developer",
             "description", "Acme description",
             "platform", "Gupy",
-            "link", "https://acme.com/jobs/1");
+            "link", "https://acme.com/jobs/1",
+            "appliedOn", "2026-11-19");
 
     // Acentos também provam que o texto sobrevive ao stdio no Windows
     private static final Map<String, Object> BETA = Map.of(
@@ -43,7 +44,8 @@ class McpServerIT {
             "jobTitle", "Pessoa Desenvolvedora Sênior",
             "description", "Descrição completa",
             "platform", "WhatsApp",
-            "link", "https://beta.com/jobs/2");
+            "link", "https://beta.com/jobs/2",
+            "appliedOn", "2026-11-20");
 
     // Uma tabela nova por teste: cada um começa sem candidaturas
     private final String tableName = "test-" + UUID.randomUUID();
@@ -105,11 +107,11 @@ class McpServerIT {
     }
 
     @Test
-    void findsAllApplicationsWhenThereIsNoTerm() throws IOException {
+    void findsAllApplicationsMostRecentFirstWhenThereIsNoTerm() throws IOException {
         register(ACME);
         register(BETA);
 
-        assertThat(search(Map.of())).containsExactlyInAnyOrder(ACME, BETA);
+        assertThat(search(Map.of())).containsExactly(BETA, ACME);
     }
 
     @Test
@@ -121,6 +123,28 @@ class McpServerIT {
         var expected = new HashMap<>(ACME);
         expected.put("link", null);
         assertThat(search(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void rejectsMissingDateAndRegistersNothing() throws IOException {
+        var invalid = new HashMap<>(ACME);
+        invalid.remove("appliedOn");
+
+        assertThat(call(REGISTER, invalid).isError()).isTrue();
+        assertThat(search(Map.of())).isEmpty();
+    }
+
+    @Test
+    void rejectsInvalidDateAndRegistersNothing() throws IOException {
+        var invalid = new HashMap<>(ACME);
+        invalid.put("appliedOn", "20/11/2026");
+
+        var result = call(REGISTER, invalid);
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result).lines().distinct())
+                .containsExactly("Data inválida: 20/11/2026. Use o formato AAAA-MM-DD");
+        assertThat(search(Map.of())).isEmpty();
     }
 
     @Test
