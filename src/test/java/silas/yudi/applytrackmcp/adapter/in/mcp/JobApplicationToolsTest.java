@@ -5,11 +5,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import silas.yudi.applytrackmcp.application.service.JobApplicationService;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
+import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -37,7 +39,9 @@ class JobApplicationToolsTest {
         var message = tools.registerJobApplication(
                 acme.company(), acme.jobTitle(), acme.description(), acme.platform(), acme.link(), "2026-11-20");
 
-        verify(service).register(acme);
+        var registered = ArgumentCaptor.forClass(JobApplication.class);
+        verify(service).register(registered.capture());
+        assertThat(registered.getValue()).usingRecursiveComparison().ignoringFields("id").isEqualTo(acme);
         assertThat(message).isEqualTo("Candidatura registrada: Acme - Java Developer");
     }
 
@@ -76,5 +80,42 @@ class JobApplicationToolsTest {
         when(service.search("acme")).thenReturn(List.of(acme, acmeLabs));
 
         assertThat(tools.searchJobApplications("acme")).containsExactly(acme, acmeLabs);
+    }
+
+    @Test
+    void updatesApplicationAndConfirms() {
+        var updated = new JobApplication(acme.id(), "Beta", "Analyst", "New description", "WhatsApp",
+                "https://beta.com", LocalDate.of(2026, 11, 21));
+        when(service.update("id-1", new JobApplicationChanges("Beta", "Analyst", "New description", "WhatsApp",
+                "https://beta.com", LocalDate.of(2026, 11, 21)))).thenReturn(updated);
+
+        assertThat(tools.updateJobApplication("id-1", "Beta", "Analyst", "New description", "WhatsApp",
+                "https://beta.com", "2026-11-21")).isEqualTo("Candidatura atualizada: Beta - Analyst");
+    }
+
+    @Test
+    void sendsOnlyTheGivenFields() {
+        when(service.update("id-1", new JobApplicationChanges(null, null, null, "Gupy", "", null))).thenReturn(acme);
+
+        assertThat(tools.updateJobApplication("id-1", null, null, null, "Gupy", "", null))
+                .isEqualTo("Candidatura atualizada: Acme - Java Developer");
+    }
+
+    @Test
+    void rejectsInvalidDateAndUpdatesNothing() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, "20/11/2026"))
+                .withMessage("Data inválida: 20/11/2026. Use o formato AAAA-MM-DD");
+        verifyNoInteractions(service);
+    }
+
+    // Em branco não é "manter": seria confirmar uma alteração que não aconteceu
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void rejectsBlankDateAndUpdatesNothing(String appliedOn) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> tools.updateJobApplication("id-1", "Beta", null, null, null, null, appliedOn))
+                .withMessage("Campo obrigatório: appliedOn");
+        verifyNoInteractions(service);
     }
 }

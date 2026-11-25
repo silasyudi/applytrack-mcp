@@ -1,20 +1,30 @@
 package silas.yudi.applytrackmcp.application.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import silas.yudi.applytrackmcp.application.port.out.JobApplicationRepository;
+import silas.yudi.applytrackmcp.domain.exception.JobApplicationNotFoundException;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
+import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -25,8 +35,15 @@ class JobApplicationServiceTest {
     @Mock
     private JobApplicationRepository repository;
 
-    @InjectMocks
+    // 01:00 UTC do dia 26 ainda é dia 25 no Brasil
+    private final Clock clock = Clock.fixed(Instant.parse("2026-11-26T01:00:00Z"), ZoneId.of("America/Sao_Paulo"));
+
     private JobApplicationService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new JobApplicationService(repository, clock);
+    }
 
     private final JobApplication acme = new JobApplication(
             "Acme", "Java Developer", "Full description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
@@ -72,6 +89,131 @@ class JobApplicationServiceTest {
         when(repository.findAll()).thenReturn(List.of(older, newer));
 
         assertThat(service.search("acme")).containsExactly(newer, older);
+    }
+
+    @Test
+    void updatesAndSavesApplication() {
+        var expected = new JobApplication(acme.id(), "Acme", "Analyst", "Full description", "Gupy",
+                "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
+        when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+        assertThat(service.update(acme.id(), titleChange("Analyst"))).isEqualTo(expected);
+        verify(repository).save(expected);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void doesNotSaveWhenApplicationDoesNotExist() {
+        when(repository.findById("unknown")).thenReturn(Optional.empty());
+
+        assertThatExceptionOfType(JobApplicationNotFoundException.class)
+                .isThrownBy(() -> service.update("unknown", titleChange("Analyst")))
+                .withMessage("Candidatura não encontrada: unknown");
+        verifyNoMoreInteractions(repository);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void updateRequiresId(String id) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.update(id, titleChange("Analyst")))
+                .withMessage("Campo obrigatório: id");
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void doesNotSaveInvalidChange() {
+        when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.update(acme.id(), titleChange(" ")))
+                .withMessage("Campo obrigatório: jobTitle");
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void doesNotSaveWhenThereAreNoChanges() {
+        when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.update(
+                        acme.id(), new JobApplicationChanges(null, null, null, null, null, null)))
+                .withMessage("Informe ao menos um campo para alterar");
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void updatesAllFieldsAndSaves() {
+        var expected = new JobApplication(acme.id(), "Beta", "Analyst", "New description", "WhatsApp",
+                "https://beta.com", LocalDate.of(2026, 11, 21));
+        when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+        assertThat(service.update(acme.id(), new JobApplicationChanges("Beta", "Analyst", "New description",
+                "WhatsApp", "https://beta.com", LocalDate.of(2026, 11, 21)))).isEqualTo(expected);
+        verify(repository).save(expected);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-11-24", "2026-11-25"})
+    void registersApplicationFromYesterdayOrToday(LocalDate date) {
+        var application = datedOn(date);
+
+        service.register(application);
+
+        verify(repository).save(application);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-11-26", "2099-01-01"})
+    void doesNotRegisterApplicationWithFutureDate(LocalDate date) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.register(datedOn(date)))
+                .withMessage("A data da candidatura não pode ser futura: " + date);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-11-24", "2026-11-25"})
+    void updatesDateToYesterdayOrToday(LocalDate date) {
+        var expected = new JobApplication(acme.id(), "Acme", "Java Developer", "Full description", "Gupy",
+                "https://acme.com/jobs/1", date);
+        when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+        assertThat(service.update(acme.id(), dateChange(date))).isEqualTo(expected);
+        verify(repository).save(expected);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-11-26", "2099-01-01"})
+    void doesNotUpdateToFutureDate(LocalDate date) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.update(acme.id(), dateChange(date)))
+                .withMessage("A data da candidatura não pode ser futura: " + date);
+        verify(repository, never()).save(any());
+    }
+
+    // Um registro que já esteja com data errada não pode impedir a correção dos outros campos
+    @Test
+    void updatesOtherFieldsOfApplicationThatAlreadyHasFutureDate() {
+        var wrong = datedOn(LocalDate.of(2099, 1, 1));
+        var expected = new JobApplication(wrong.id(), "Acme", "Analyst", "Full description", "Gupy", null,
+                LocalDate.of(2099, 1, 1));
+        when(repository.findById(wrong.id())).thenReturn(Optional.of(wrong));
+
+        assertThat(service.update(wrong.id(), titleChange("Analyst"))).isEqualTo(expected);
+        verify(repository).save(expected);
+    }
+
+    private static JobApplicationChanges dateChange(LocalDate date) {
+        return new JobApplicationChanges(null, null, null, null, null, date);
+    }
+
+    private static JobApplicationChanges titleChange(String jobTitle) {
+        return new JobApplicationChanges(null, jobTitle, null, null, null, null);
     }
 
     private static JobApplication datedOn(LocalDate date) {

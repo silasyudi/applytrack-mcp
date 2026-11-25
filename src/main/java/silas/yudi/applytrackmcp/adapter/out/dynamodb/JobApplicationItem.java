@@ -5,7 +5,6 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 /** Formato gravado no DynamoDB. Não sai deste adaptador. O SDK exige classe com getters e setters. */
 @DynamoDbBean
@@ -21,7 +20,7 @@ public class JobApplicationItem {
 
     static JobApplicationItem from(JobApplication application) {
         var item = new JobApplicationItem();
-        item.setId(UUID.randomUUID().toString());
+        item.setId(application.id());
         item.setCompany(application.company());
         item.setJobTitle(application.jobTitle());
         item.setDescription(application.description());
@@ -32,7 +31,7 @@ public class JobApplicationItem {
     }
 
     JobApplication toDomain() {
-        return new JobApplication(company, jobTitle, description, platform, link, appliedOn);
+        return new JobApplication(id, company, jobTitle, description, platform, link, appliedOn);
     }
 
     @DynamoDbPartitionKey

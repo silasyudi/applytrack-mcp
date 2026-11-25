@@ -81,11 +81,13 @@ class DynamoDbJobApplicationRepositoryIT {
     }
 
     @Test
-    void doesNotOverwriteAnEqualApplication() {
+    void doesNotOverwriteAnEqualApplicationWithAnotherId() {
+        var sameData = new JobApplication("Acme", "Java Developer", "Acme description", "Gupy",
+                "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20));
         repository.save(acme);
-        repository.save(acme);
+        repository.save(sameData);
 
-        assertThat(repository.findAll()).containsExactly(acme, acme);
+        assertThat(repository.findAll()).containsExactlyInAnyOrder(acme, sameData);
     }
 
     // Cada resposta do scan traz até 1 MB; aqui são cerca de 1,5 MB
@@ -106,5 +108,31 @@ class DynamoDbJobApplicationRepositoryIT {
 
         var item = client.scan(request -> request.tableName(table.tableName())).items().getFirst();
         assertThat(item.get("appliedOn")).isEqualTo(AttributeValue.fromS("2026-11-20"));
+    }
+
+    @Test
+    void findsOnlyTheApplicationWithTheId() {
+        repository.save(acme);
+        repository.save(beta);
+
+        assertThat(repository.findById(beta.id())).contains(beta);
+    }
+
+    @Test
+    void findsNothingWithUnknownId() {
+        repository.save(acme);
+
+        assertThat(repository.findById("unknown")).isEmpty();
+    }
+
+    @Test
+    void replacesApplicationWithTheSameIdAndRemovesTheLink() {
+        var changed = new JobApplication(acme.id(), "Acme", "Analyst", "New description", "LinkedIn", null,
+                LocalDate.of(2026, 11, 21));
+        repository.save(acme);
+        repository.save(beta);
+        repository.save(changed);
+
+        assertThat(repository.findAll()).containsExactlyInAnyOrder(changed, beta);
     }
 }

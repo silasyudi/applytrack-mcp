@@ -6,6 +6,7 @@ import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -75,5 +76,72 @@ class JobApplicationTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication("Acme", "Java Developer", "Description", "LinkedIn", null, null))
                 .withMessage("Campo obrigatório: appliedOn");
+    }
+
+    @Test
+    void newApplicationsReceiveDifferentIds() {
+        var first = acme();
+        var second = acme();
+
+        assertThat(UUID.fromString(first.id())).isNotEqualTo(UUID.fromString(second.id()));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void requiresId(String id) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new JobApplication(
+                        id, "Acme", "Java Developer", "Description", "LinkedIn", null, LocalDate.of(2026, 11, 20)))
+                .withMessage("Campo obrigatório: id");
+    }
+
+    @Test
+    void updatesAllFieldsAndKeepsId() {
+        var original = acme();
+
+        var updated = original.update(new JobApplicationChanges(
+                "Beta", "Analyst", "New description", "Gupy", "https://beta.com", LocalDate.of(2026, 11, 21)));
+
+        assertThat(updated).isEqualTo(new JobApplication(
+                original.id(), "Beta", "Analyst", "New description", "Gupy", "https://beta.com", LocalDate.of(2026, 11, 21)));
+    }
+
+    @Test
+    void keepsFieldsThatAreNotInTheChanges() {
+        var original = acme();
+
+        assertThat(original.update(new JobApplicationChanges(null, "Analyst", null, null, null, null)))
+                .isEqualTo(new JobApplication(original.id(), "Acme", "Analyst", "Description", "LinkedIn",
+                        "https://acme.com", LocalDate.of(2026, 11, 20)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void blankLinkRemovesTheLink(String link) {
+        var original = acme();
+
+        assertThat(original.update(new JobApplicationChanges(null, null, null, null, link, null)))
+                .isEqualTo(new JobApplication(original.id(), "Acme", "Java Developer", "Description", "LinkedIn",
+                        null, LocalDate.of(2026, 11, 20)));
+    }
+
+    @Test
+    void updateCannotEraseRequiredField() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> acme().update(new JobApplicationChanges(" ", null, null, null, null, null)))
+                .withMessage("Campo obrigatório: company");
+    }
+
+    @Test
+    void updateRequiresAtLeastOneChange() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> acme().update(new JobApplicationChanges(null, null, null, null, null, null)))
+                .withMessage("Informe ao menos um campo para alterar");
+    }
+
+    private static JobApplication acme() {
+        return new JobApplication(
+                "Acme", "Java Developer", "Description", "LinkedIn", "https://acme.com", LocalDate.of(2026, 11, 20));
     }
 }

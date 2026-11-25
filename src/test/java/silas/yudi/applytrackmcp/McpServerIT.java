@@ -29,6 +29,7 @@ class McpServerIT {
 
     private static final String REGISTER = "register_job_application";
     private static final String SEARCH = "search_job_applications";
+    private static final String UPDATE = "update_job_application";
 
     private static final Map<String, Object> ACME = Map.of(
             "company", "Acme",
@@ -73,9 +74,9 @@ class McpServerIT {
     }
 
     @Test
-    void exposesExactlyTwoTools() {
+    void exposesExactlyThreeTools() {
         assertThat(client.listTools().tools()).extracting(Tool::name)
-                .containsExactlyInAnyOrder(REGISTER, SEARCH);
+                .containsExactlyInAnyOrder(REGISTER, SEARCH, UPDATE);
     }
 
     @Test
@@ -180,11 +181,127 @@ class McpServerIT {
         assertThat(search(Map.of())).containsExactly(ACME);
     }
 
+    @Test
+    void updatesOnlyTheGivenFieldsOfOneApplication() throws IOException {
+        register(ACME);
+        register(BETA);
+        var id = idOf("acme");
+
+        var result = call(UPDATE, Map.of("id", id, "jobTitle", "Analista Sênior"));
+
+        assertThat(result.isError()).isFalse();
+        assertThat(text(result)).isEqualTo("Candidatura atualizada: Acme - Analista Sênior");
+        var expected = new HashMap<>(ACME);
+        expected.put("jobTitle", "Analista Sênior");
+        assertThat(search(Map.of())).containsExactly(BETA, expected);
+        assertThat(idOf("acme")).isEqualTo(id);
+    }
+
+    @Test
+    void updatesAllFieldsOfOneApplication() throws IOException {
+        register(ACME);
+        register(BETA);
+        var id = idOf("acme");
+        Map<String, Object> changed = Map.of(
+                "company", "Gama Soluções",
+                "jobTitle", "Analista Sênior",
+                "description", "Nova descrição",
+                "platform", "LinkedIn",
+                "link", "https://gama.com/jobs/3",
+                "appliedOn", "2026-11-18");
+
+        var arguments = new HashMap<>(changed);
+        arguments.put("id", id);
+        var result = call(UPDATE, arguments);
+
+        assertThat(result.isError()).isFalse();
+        assertThat(text(result)).isEqualTo("Candidatura atualizada: Gama Soluções - Analista Sênior");
+        assertThat(search(Map.of())).containsExactly(BETA, changed);
+        assertThat(idOf("gama")).isEqualTo(id);
+    }
+
+    @Test
+    void rejectsFutureDateOnRegistration() throws IOException {
+        var invalid = new HashMap<>(ACME);
+        invalid.put("appliedOn", "2999-01-01");
+
+        var result = call(REGISTER, invalid);
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result).lines().distinct())
+                .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
+        assertThat(search(Map.of())).isEmpty();
+    }
+
+    @Test
+    void rejectsFutureDateOnUpdate() throws IOException {
+        register(ACME);
+
+        var result = call(UPDATE, Map.of("id", idOf("acme"), "appliedOn", "2999-01-01"));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result).lines().distinct())
+                .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
+        assertThat(search(Map.of())).containsExactly(ACME);
+    }
+
+    @Test
+    void rejectsRegistrationWithoutAnyArgument() throws IOException {
+        assertThat(call(REGISTER, Map.of()).isError()).isTrue();
+        assertThat(search(Map.of())).isEmpty();
+    }
+
+    @Test
+    void removesLinkWithBlankText() throws IOException {
+        register(ACME);
+
+        assertThat(call(UPDATE, Map.of("id", idOf("acme"), "link", "")).isError()).isFalse();
+
+        var expected = new HashMap<>(ACME);
+        expected.put("link", null);
+        assertThat(search(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void reportsUnknownIdAndChangesNothing() throws IOException {
+        register(ACME);
+
+        var result = call(UPDATE, Map.of("id", "unknown", "jobTitle", "Analyst"));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
+        assertThat(search(Map.of())).containsExactly(ACME);
+    }
+
+    @Test
+    void rejectsUpdateWithoutChanges() throws IOException {
+        register(ACME);
+
+        var result = call(UPDATE, Map.of("id", idOf("acme")));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result).lines().distinct()).containsExactly("Informe ao menos um campo para alterar");
+        assertThat(search(Map.of())).containsExactly(ACME);
+    }
+
     private void register(Map<String, Object> application) {
         assertThat(call(REGISTER, application).isError()).isFalse();
     }
 
+    // Cada registro tem um id aleatório, verificado e retirado para comparar os demais campos
     private List<Map<String, Object>> search(Map<String, Object> arguments) throws IOException {
+        var found = searchWithId(arguments);
+        found.forEach(application -> assertThat(UUID.fromString((String) application.remove("id"))).isNotNull());
+        return found;
+    }
+
+    private String idOf(String term) throws IOException {
+        var found = searchWithId(Map.of("term", term));
+        assertThat(found).hasSize(1);
+        return (String) found.getFirst().get("id");
+    }
+
+    private List<Map<String, Object>> searchWithId(Map<String, Object> arguments) throws IOException {
         var result = call(SEARCH, arguments);
         assertThat(result.isError()).isFalse();
         return McpJsonDefaults.getMapper().readValue(text(result), new TypeRef<List<Map<String, Object>>>() {
