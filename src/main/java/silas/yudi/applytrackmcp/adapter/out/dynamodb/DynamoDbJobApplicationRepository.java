@@ -38,4 +38,9 @@ public class DynamoDbJobApplicationRepository implements JobApplicationRepositor
                 .map(JobApplicationItem::toDomain)
                 .toList();
     }
+
+    @Override
+    public void deleteById(String id) {
+        table.deleteItem(Key.builder().partitionValue(id).build());
+    }
 }

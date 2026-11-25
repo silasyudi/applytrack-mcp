@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -58,12 +59,62 @@ class JobApplicationServiceTest {
         verifyNoMoreInteractions(repository);
     }
 
+    // Em cada teste, o termo está em um único campo de uma candidatura; a acme não o tem em nenhum
     @ParameterizedTest
-    @ValueSource(strings = {"Soluções Beta", "solucoes", "SOLUÇÕES", "beta", " beta ", "senior", "desenvolvedora"})
-    void searchesByPartOfCompanyOrJobTitleIgnoringCaseAndAccents(String term) {
-        when(repository.findAll()).thenReturn(List.of(acme, solucoes));
+    @ValueSource(strings = {"Soluções Beta", "solucoes", "SOLUÇÕES", " beta "})
+    void findsTermOnlyInCompanyIgnoringCaseAndAccents(String term) {
+        var inCompany = new JobApplication("Soluções Beta", "Analista", "Vaga administrativa", "Gupy", null,
+                LocalDate.of(2026, 11, 20));
+        when(repository.findAll()).thenReturn(List.of(acme, inCompany));
 
-        assertThat(service.search(term)).containsExactly(solucoes);
+        assertThat(service.search(term)).containsExactly(inCompany);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"senior", "SÊNIOR", "desenvolvedora", " Pessoa Desenvolvedora "})
+    void findsTermOnlyInJobTitleIgnoringCaseAndAccents(String term) {
+        var inTitle = new JobApplication("Gama", "Pessoa Desenvolvedora Sênior", "Vaga administrativa", "Gupy", null,
+                LocalDate.of(2026, 11, 20));
+        when(repository.findAll()).thenReturn(List.of(acme, inTitle));
+
+        assertThat(service.search(term)).containsExactly(inTitle);
+    }
+
+    // O título pode ser genérico, e a stack aparecer só na descrição
+    @ParameterizedTest
+    @ValueSource(strings = {"Kafka", "kafka", "microsservicos", "MICROSSERVIÇOS", " Spring Boot "})
+    void findsTermOnlyInDescriptionIgnoringCaseAndAccents(String term) {
+        var inDescription = new JobApplication("Gama", "Desenvolvedor de Software Sênior",
+                "Requisitos:\n- Java com Spring Boot\n- Microsserviços e Kafka", "Gupy", null, LocalDate.of(2026, 11, 20));
+        when(repository.findAll()).thenReturn(List.of(acme, inDescription));
+
+        assertThat(service.search(term)).containsExactly(inDescription);
+    }
+
+    @Test
+    void returnsOnceAnApplicationThatMatchesInEveryField() {
+        var everywhere = new JobApplication(
+                "Java House", "Java Developer", "Java 25", "Gupy", null, LocalDate.of(2026, 11, 20));
+        when(repository.findAll()).thenReturn(List.of(everywhere, solucoes));
+
+        assertThat(service.search("java")).containsExactly(everywhere);
+    }
+
+    @Test
+    void returnsOnceAnApplicationThatRepeatsTheTermInTheSameField() {
+        var repeated = new JobApplication("Gama", "Analista", "Kafka, Kafka Streams e Kafka Connect", "Gupy", null,
+                LocalDate.of(2026, 11, 20));
+        when(repository.findAll()).thenReturn(List.of(repeated, acme));
+
+        assertThat(service.search("kafka")).containsExactly(repeated);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Gupy", "https", "2026"})
+    void doesNotSearchByOtherFields(String term) {
+        when(repository.findAll()).thenReturn(List.of(acme));
+
+        assertThat(service.search(term)).isEmpty();
     }
 
     @Test
@@ -89,6 +140,32 @@ class JobApplicationServiceTest {
         when(repository.findAll()).thenReturn(List.of(older, newer));
 
         assertThat(service.search("acme")).containsExactly(newer, older);
+    }
+
+    @Test
+    void getsApplicationById() {
+        when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+        assertThat(service.get(acme.id())).isEqualTo(acme);
+    }
+
+    @Test
+    void reportsUnknownIdWhenGetting() {
+        when(repository.findById("unknown")).thenReturn(Optional.empty());
+
+        assertThatExceptionOfType(JobApplicationNotFoundException.class)
+                .isThrownBy(() -> service.get("unknown"))
+                .withMessage("Candidatura não encontrada: unknown");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void getRequiresId(String id) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.get(id))
+                .withMessage("Campo obrigatório: id");
+        verifyNoInteractions(repository);
     }
 
     @Test
@@ -210,6 +287,35 @@ class JobApplicationServiceTest {
 
     private static JobApplicationChanges dateChange(LocalDate date) {
         return new JobApplicationChanges(null, null, null, null, null, date);
+    }
+
+    @Test
+    void deletesAndReturnsApplication() {
+        when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+        assertThat(service.delete(acme.id())).isEqualTo(acme);
+        verify(repository).deleteById(acme.id());
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void doesNotDeleteWhenApplicationDoesNotExist() {
+        when(repository.findById("unknown")).thenReturn(Optional.empty());
+
+        assertThatExceptionOfType(JobApplicationNotFoundException.class)
+                .isThrownBy(() -> service.delete("unknown"))
+                .withMessage("Candidatura não encontrada: unknown");
+        verifyNoMoreInteractions(repository);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void deleteRequiresId(String id) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.delete(id))
+                .withMessage("Campo obrigatório: id");
+        verifyNoInteractions(repository);
     }
 
     private static JobApplicationChanges titleChange(String jobTitle) {

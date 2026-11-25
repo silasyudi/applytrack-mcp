@@ -135,4 +135,24 @@ class DynamoDbJobApplicationRepositoryIT {
 
         assertThat(repository.findAll()).containsExactlyInAnyOrder(changed, beta);
     }
+
+    @Test
+    void deletesOnlyTheApplicationWithTheId() {
+        repository.save(acme);
+        repository.save(beta);
+
+        repository.deleteById(acme.id());
+
+        assertThat(repository.findAll()).containsExactly(beta);
+        assertThat(repository.findById(acme.id())).isEmpty();
+    }
+
+    @Test
+    void deletingUnknownIdKeepsEverything() {
+        repository.save(acme);
+
+        repository.deleteById("unknown");
+
+        assertThat(repository.findAll()).containsExactly(acme);
+    }
 }

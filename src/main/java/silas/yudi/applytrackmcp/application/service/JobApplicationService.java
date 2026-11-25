@@ -30,19 +30,38 @@ public class JobApplicationService {
         repository.save(application);
     }
 
+    public JobApplication get(String id) {
+        requireId(id);
+        return find(id);
+    }
+
     public JobApplication update(String id, JobApplicationChanges changes) {
-        if (id == null || id.isBlank()) {
-            throw new IllegalArgumentException("Campo obrigatório: id");
-        }
+        requireId(id);
         // Só a data nova: um registro com data errada ainda pode ter os outros campos corrigidos
         if (changes.appliedOn() != null) {
             rejectFuture(changes.appliedOn());
         }
-        var updated = repository.findById(id)
-                .orElseThrow(() -> new JobApplicationNotFoundException(id))
-                .update(changes);
+        var updated = find(id).update(changes);
         repository.save(updated);
         return updated;
+    }
+
+    /** Devolve a candidatura removida. */
+    public JobApplication delete(String id) {
+        requireId(id);
+        var application = find(id);
+        repository.deleteById(id);
+        return application;
+    }
+
+    private static void requireId(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Campo obrigatório: id");
+        }
+    }
+
+    private JobApplication find(String id) {
+        return repository.findById(id).orElseThrow(() -> new JobApplicationNotFoundException(id));
     }
 
     private void rejectFuture(LocalDate appliedOn) {
@@ -51,12 +70,13 @@ public class JobApplicationService {
         }
     }
 
-    /** Busca por trecho da empresa ou do cargo; sem termo, lista tudo. Mais recentes primeiro. */
+    /** Busca por trecho da empresa, do cargo ou da descrição; sem termo, lista tudo. Mais recentes primeiro. */
     public List<JobApplication> search(String term) {
         var normalizedTerm = term == null ? "" : normalize(term);
         return repository.findAll().stream()
                 .filter(application -> normalize(application.company()).contains(normalizedTerm)
-                        || normalize(application.jobTitle()).contains(normalizedTerm))
+                        || normalize(application.jobTitle()).contains(normalizedTerm)
+                        || normalize(application.description()).contains(normalizedTerm))
                 .sorted(MOST_RECENT_FIRST)
                 .toList();
     }

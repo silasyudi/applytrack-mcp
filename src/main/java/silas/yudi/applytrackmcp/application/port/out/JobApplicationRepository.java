@@ -14,4 +14,6 @@ public interface JobApplicationRepository {
     Optional<JobApplication> findById(String id);
 
     List<JobApplication> findAll();
+
+    void deleteById(String id);
 }

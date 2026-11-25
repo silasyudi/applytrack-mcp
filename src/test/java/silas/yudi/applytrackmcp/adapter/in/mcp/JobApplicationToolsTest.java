@@ -75,11 +75,15 @@ class JobApplicationToolsTest {
     }
 
     @Test
-    void returnsAllApplicationsFound() {
+    void returnsSummaryOfAllApplicationsFound() {
         var acmeLabs = new JobApplication("Acme Labs", "Analyst", "Another description", "WhatsApp", null, LocalDate.of(2026, 11, 20));
         when(service.search("acme")).thenReturn(List.of(acme, acmeLabs));
 
-        assertThat(tools.searchJobApplications("acme")).containsExactly(acme, acmeLabs);
+        assertThat(tools.searchJobApplications("acme")).containsExactly(
+                new JobApplicationSummary(acme.id(), "Acme", "Java Developer", "Gupy", "https://acme.com/jobs/1",
+                        LocalDate.of(2026, 11, 20)),
+                new JobApplicationSummary(acmeLabs.id(), "Acme Labs", "Analyst", "WhatsApp", null,
+                        LocalDate.of(2026, 11, 20)));
     }
 
     @Test
@@ -117,5 +121,19 @@ class JobApplicationToolsTest {
                 .isThrownBy(() -> tools.updateJobApplication("id-1", "Beta", null, null, null, null, appliedOn))
                 .withMessage("Campo obrigatório: appliedOn");
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void deletesApplicationAndConfirms() {
+        when(service.delete("id-1")).thenReturn(acme);
+
+        assertThat(tools.deleteJobApplication("id-1")).isEqualTo("Candidatura removida: Acme - Java Developer");
+    }
+
+    @Test
+    void returnsCompleteApplication() {
+        when(service.get("id-1")).thenReturn(acme);
+
+        assertThat(tools.getJobApplication("id-1")).isEqualTo(acme);
     }
 }

@@ -37,12 +37,23 @@ public class JobApplicationTools {
     }
 
     @McpTool(name = "search_job_applications",
-            description = "Busca candidaturas já registradas, por exemplo para responder \"já me candidatei nesta empresa?\". "
-                    + "Ignora acentos e maiúsculas. Sem termo, lista todas.",
+            description = "Busca candidaturas já registradas, por exemplo para responder \"já me candidatei nesta empresa?\" "
+                    + "ou \"quais vagas pedem Kafka?\". "
+                    + "Ignora acentos e maiúsculas. Sem termo, lista todas. "
+                    + "Não traz a descrição da vaga: para lê-la, use get_job_application.",
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
-    public List<JobApplication> searchJobApplications(
-            @McpToolParam(description = "Trecho do nome da empresa ou do cargo", required = false) String term) {
-        return service.search(term);
+    public List<JobApplicationSummary> searchJobApplications(
+            @McpToolParam(description = "Um único trecho da empresa, do cargo ou da descrição. Para tecnologias, envie uma por busca", required = false) String term) {
+        return service.search(term).stream().map(JobApplicationSummary::from).toList();
+    }
+
+    @McpTool(name = "get_job_application",
+            description = "Traz uma candidatura completa, com a descrição da vaga. Use quando precisar dos detalhes; "
+                    + "para listar ou saber se uma vaga existe, search_job_applications basta.",
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
+    public JobApplication getJobApplication(
+            @McpToolParam(description = "Id da candidatura, obtido na busca") String id) {
+        return service.get(id);
     }
 
     @McpTool(name = "update_job_application",
@@ -62,6 +73,17 @@ public class JobApplicationTools {
         var updated = service.update(
                 id, new JobApplicationChanges(company, jobTitle, description, platform, link, date));
         return "Candidatura atualizada: %s - %s".formatted(updated.company(), updated.jobTitle());
+    }
+
+    @McpTool(name = "delete_job_application",
+            description = "Remove definitivamente uma candidatura; não dá para desfazer. Antes, use "
+                    + "search_job_applications para obter o id, mostre ao usuário a empresa, o cargo e a data, e só "
+                    + "remova depois que ele confirmar. Para corrigir dados, use update_job_application.",
+            annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = true))
+    public String deleteJobApplication(
+            @McpToolParam(description = "Id da candidatura, obtido na busca") String id) {
+        var deleted = service.delete(id);
+        return "Candidatura removida: %s - %s".formatted(deleted.company(), deleted.jobTitle());
     }
 
     private static LocalDate parseRequiredDate(String date) {

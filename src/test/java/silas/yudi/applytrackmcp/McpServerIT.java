@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,9 @@ class McpServerIT {
 
     private static final String REGISTER = "register_job_application";
     private static final String SEARCH = "search_job_applications";
+    private static final String GET = "get_job_application";
     private static final String UPDATE = "update_job_application";
+    private static final String DELETE = "delete_job_application";
 
     private static final Map<String, Object> ACME = Map.of(
             "company", "Acme",
@@ -74,9 +77,9 @@ class McpServerIT {
     }
 
     @Test
-    void exposesExactlyThreeTools() {
+    void exposesExactlyFiveTools() {
         assertThat(client.listTools().tools()).extracting(Tool::name)
-                .containsExactlyInAnyOrder(REGISTER, SEARCH, UPDATE);
+                .containsExactlyInAnyOrder(REGISTER, SEARCH, GET, UPDATE, DELETE);
     }
 
     @Test
@@ -89,22 +92,52 @@ class McpServerIT {
 
     @Test
     void findsNothingWhenThereAreNoApplications() throws IOException {
-        assertThat(search(Map.of())).isEmpty();
+        assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
     @Test
     void findsNothingWhenNoApplicationMatches() throws IOException {
         register(ACME);
 
-        assertThat(search(Map.of("term", "unknown"))).isEmpty();
+        assertThat(searchAndGet(Map.of("term", "unknown"))).isEmpty();
     }
 
     @Test
-    void findsOnlyTheMatchingApplicationWithAllItsData() throws IOException {
+    void findsTermOnlyInCompany() throws IOException {
         register(ACME);
         register(BETA);
 
-        assertThat(search(Map.of("term", "solucoes"))).containsExactly(BETA);
+        assertThat(searchAndGet(Map.of("term", "solucoes"))).containsExactly(BETA);
+    }
+
+    @Test
+    void findsApplicationByTechnologyThatIsOnlyInTheDescription() throws IOException {
+        var generic = new HashMap<>(BETA);
+        generic.put("description", "Requisitos:\n- Java com Spring Boot\n- Mensageria com Kafka");
+        register(ACME);
+        register(generic);
+
+        assertThat(searchAndGet(Map.of("term", "kafka"))).containsExactly(generic);
+    }
+
+    @Test
+    void findsTermOnlyInJobTitle() throws IOException {
+        register(ACME);
+        register(BETA);
+
+        assertThat(searchAndGet(Map.of("term", "desenvolvedora"))).containsExactly(BETA);
+    }
+
+    @Test
+    void returnsOnceAnApplicationThatMatchesInSeveralFieldsAndTimes() throws IOException {
+        var everywhere = new HashMap<>(BETA);
+        everywhere.put("company", "Kafka House");
+        everywhere.put("jobTitle", "Engenheiro Kafka");
+        everywhere.put("description", "Kafka, Kafka Streams e Kafka Connect");
+        register(ACME);
+        register(everywhere);
+
+        assertThat(searchAndGet(Map.of("term", "kafka"))).containsExactly(everywhere);
     }
 
     @Test
@@ -112,7 +145,7 @@ class McpServerIT {
         register(ACME);
         register(BETA);
 
-        assertThat(search(Map.of())).containsExactly(BETA, ACME);
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA, ACME);
     }
 
     @Test
@@ -123,7 +156,7 @@ class McpServerIT {
 
         var expected = new HashMap<>(ACME);
         expected.put("link", null);
-        assertThat(search(Map.of())).containsExactly(expected);
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
     }
 
     @Test
@@ -132,7 +165,7 @@ class McpServerIT {
         invalid.remove("appliedOn");
 
         assertThat(call(REGISTER, invalid).isError()).isTrue();
-        assertThat(search(Map.of())).isEmpty();
+        assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
     @Test
@@ -145,7 +178,7 @@ class McpServerIT {
         assertThat(result.isError()).isTrue();
         assertThat(text(result).lines().distinct())
                 .containsExactly("Data inválida: 20/11/2026. Use o formato AAAA-MM-DD");
-        assertThat(search(Map.of())).isEmpty();
+        assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
     @Test
@@ -158,7 +191,7 @@ class McpServerIT {
         assertThat(result.isError()).isTrue();
         // O Spring AI repete a mensagem em duas linhas
         assertThat(text(result).lines().distinct()).containsExactly("Campo obrigatório: company");
-        assertThat(search(Map.of())).isEmpty();
+        assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
     @Test
@@ -168,7 +201,7 @@ class McpServerIT {
 
         // A mensagem vem da validação do schema e muda com o idioma: não é verificada
         assertThat(call(REGISTER, invalid).isError()).isTrue();
-        assertThat(search(Map.of())).isEmpty();
+        assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
     @Test
@@ -178,7 +211,7 @@ class McpServerIT {
         stopServer();
         startServer();
 
-        assertThat(search(Map.of())).containsExactly(ACME);
+        assertThat(searchAndGet(Map.of())).containsExactly(ACME);
     }
 
     @Test
@@ -193,7 +226,7 @@ class McpServerIT {
         assertThat(text(result)).isEqualTo("Candidatura atualizada: Acme - Analista Sênior");
         var expected = new HashMap<>(ACME);
         expected.put("jobTitle", "Analista Sênior");
-        assertThat(search(Map.of())).containsExactly(BETA, expected);
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA, expected);
         assertThat(idOf("acme")).isEqualTo(id);
     }
 
@@ -216,7 +249,7 @@ class McpServerIT {
 
         assertThat(result.isError()).isFalse();
         assertThat(text(result)).isEqualTo("Candidatura atualizada: Gama Soluções - Analista Sênior");
-        assertThat(search(Map.of())).containsExactly(BETA, changed);
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA, changed);
         assertThat(idOf("gama")).isEqualTo(id);
     }
 
@@ -230,7 +263,7 @@ class McpServerIT {
         assertThat(result.isError()).isTrue();
         assertThat(text(result).lines().distinct())
                 .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
-        assertThat(search(Map.of())).isEmpty();
+        assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
     @Test
@@ -242,13 +275,13 @@ class McpServerIT {
         assertThat(result.isError()).isTrue();
         assertThat(text(result).lines().distinct())
                 .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
-        assertThat(search(Map.of())).containsExactly(ACME);
+        assertThat(searchAndGet(Map.of())).containsExactly(ACME);
     }
 
     @Test
     void rejectsRegistrationWithoutAnyArgument() throws IOException {
         assertThat(call(REGISTER, Map.of()).isError()).isTrue();
-        assertThat(search(Map.of())).isEmpty();
+        assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
     @Test
@@ -259,7 +292,7 @@ class McpServerIT {
 
         var expected = new HashMap<>(ACME);
         expected.put("link", null);
-        assertThat(search(Map.of())).containsExactly(expected);
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
     }
 
     @Test
@@ -270,7 +303,7 @@ class McpServerIT {
 
         assertThat(result.isError()).isTrue();
         assertThat(text(result).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
-        assertThat(search(Map.of())).containsExactly(ACME);
+        assertThat(searchAndGet(Map.of())).containsExactly(ACME);
     }
 
     @Test
@@ -281,27 +314,129 @@ class McpServerIT {
 
         assertThat(result.isError()).isTrue();
         assertThat(text(result).lines().distinct()).containsExactly("Informe ao menos um campo para alterar");
-        assertThat(search(Map.of())).containsExactly(ACME);
+        assertThat(searchAndGet(Map.of())).containsExactly(ACME);
+    }
+
+    @Test
+    void marksDeleteAsDestructive() {
+        var delete = client.listTools().tools().stream()
+                .filter(tool -> tool.name().equals(DELETE)).findFirst().orElseThrow();
+
+        assertThat(delete.annotations().destructiveHint()).isTrue();
+        assertThat(delete.annotations().readOnlyHint()).isFalse();
+    }
+
+    @Test
+    void deletesOnlyTheGivenApplicationEvenAfterServerRestart() throws IOException {
+        register(ACME);
+        register(BETA);
+
+        var result = call(DELETE, Map.of("id", idOf("acme")));
+
+        assertThat(result.isError()).isFalse();
+        assertThat(text(result)).isEqualTo("Candidatura removida: Acme - Java Developer");
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+
+        stopServer();
+        startServer();
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+    }
+
+    @Test
+    void reportsAlreadyDeletedApplication() throws IOException {
+        register(ACME);
+        register(BETA);
+        var id = idOf("acme");
+        assertThat(call(DELETE, Map.of("id", id)).isError()).isFalse();
+
+        var result = call(DELETE, Map.of("id", id));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(text(result).lines().distinct()).containsExactly("Candidatura não encontrada: " + id);
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+    }
+
+    @Test
+    void rejectsDeleteWithBlankOrMissingIdAndDeletesNothing() throws IOException {
+        register(ACME);
+
+        var blank = call(DELETE, Map.of("id", " "));
+        assertThat(blank.isError()).isTrue();
+        assertThat(text(blank).lines().distinct()).containsExactly("Campo obrigatório: id");
+        assertThat(call(DELETE, Map.of()).isError()).isTrue();
+        assertThat(searchAndGet(Map.of())).containsExactly(ACME);
+    }
+
+    @Test
+    void searchReturnsEveryFieldExceptTheDescription() throws IOException {
+        register(ACME);
+
+        var found = search(Map.of("term", "acme description"));
+
+        assertThat(found).hasSize(1);
+        var expected = new HashMap<>(ACME);
+        expected.remove("description");
+        expected.put("id", found.getFirst().get("id"));
+        assertThat(found).containsExactly(expected);
+        UUID.fromString((String) found.getFirst().get("id"));
+    }
+
+    @Test
+    void getReturnsOnlyTheRequestedApplicationWithItsDescription() throws IOException {
+        register(ACME);
+        register(BETA);
+        var id = idOf("solucoes");
+
+        var expected = new HashMap<>(BETA);
+        expected.put("id", id);
+        assertThat(get(id)).isEqualTo(expected);
+    }
+
+    @Test
+    void getReportsUnknownBlankAndMissingId() {
+        register(ACME);
+
+        var unknown = call(GET, Map.of("id", "unknown"));
+        assertThat(unknown.isError()).isTrue();
+        assertThat(text(unknown).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
+
+        var blank = call(GET, Map.of("id", " "));
+        assertThat(blank.isError()).isTrue();
+        assertThat(text(blank).lines().distinct()).containsExactly("Campo obrigatório: id");
+
+        assertThat(call(GET, Map.of()).isError()).isTrue();
     }
 
     private void register(Map<String, Object> application) {
         assertThat(call(REGISTER, application).isError()).isFalse();
     }
 
-    // Cada registro tem um id aleatório, verificado e retirado para comparar os demais campos
-    private List<Map<String, Object>> search(Map<String, Object> arguments) throws IOException {
-        var found = searchWithId(arguments);
-        found.forEach(application -> assertThat(UUID.fromString((String) application.remove("id"))).isNotNull());
-        return found;
+    // Busca e lê cada candidatura completa; o id, aleatório, é verificado e retirado da comparação
+    private List<Map<String, Object>> searchAndGet(Map<String, Object> arguments) throws IOException {
+        var complete = new ArrayList<Map<String, Object>>();
+        for (var summary : search(arguments)) {
+            var id = (String) summary.get("id");
+            var application = get(id);
+            assertThat(application.remove("id")).isEqualTo(UUID.fromString(id).toString());
+            complete.add(application);
+        }
+        return complete;
+    }
+
+    private Map<String, Object> get(String id) throws IOException {
+        var result = call(GET, Map.of("id", id));
+        assertThat(result.isError()).isFalse();
+        return McpJsonDefaults.getMapper().readValue(text(result), new TypeRef<Map<String, Object>>() {
+        });
     }
 
     private String idOf(String term) throws IOException {
-        var found = searchWithId(Map.of("term", term));
+        var found = search(Map.of("term", term));
         assertThat(found).hasSize(1);
         return (String) found.getFirst().get("id");
     }
 
-    private List<Map<String, Object>> searchWithId(Map<String, Object> arguments) throws IOException {
+    private List<Map<String, Object>> search(Map<String, Object> arguments) throws IOException {
         var result = call(SEARCH, arguments);
         assertThat(result.isError()).isFalse();
         return McpJsonDefaults.getMapper().readValue(text(result), new TypeRef<List<Map<String, Object>>>() {
