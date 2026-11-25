@@ -28,7 +28,7 @@ class JobApplicationTest {
     void requiresCompany(String company) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(company, "Java Developer", "Description", "LinkedIn", null))
-                .withMessageContaining("company");
+                .withMessage("Campo obrigatório: company");
     }
 
     @ParameterizedTest
@@ -37,7 +37,7 @@ class JobApplicationTest {
     void requiresJobTitle(String jobTitle) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication("Acme", jobTitle, "Description", "LinkedIn", null))
-                .withMessageContaining("jobTitle");
+                .withMessage("Campo obrigatório: jobTitle");
     }
 
     @ParameterizedTest
@@ -46,7 +46,7 @@ class JobApplicationTest {
     void requiresDescription(String description) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication("Acme", "Java Developer", description, "LinkedIn", null))
-                .withMessageContaining("description");
+                .withMessage("Campo obrigatório: description");
     }
 
     @ParameterizedTest
@@ -55,7 +55,7 @@ class JobApplicationTest {
     void requiresPlatform(String platform) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication("Acme", "Java Developer", "Description", platform, null))
-                .withMessageContaining("platform");
+                .withMessage("Campo obrigatório: platform");
     }
 
     // Há processos que só chegam por e-mail ou WhatsApp

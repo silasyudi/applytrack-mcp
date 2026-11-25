@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import silas.yudi.applytrackmcp.adapter.out.memory.InMemoryJobApplicationRepository;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 
 import static org.assertj.core.api.Assertions.assertThat;
