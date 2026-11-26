@@ -318,7 +318,6 @@ class JobApplicationToolsTest {
             verifyNoInteractions(service);
         }
 
-        // Em branco não é "manter": seria confirmar uma alteração que não aconteceu
         @ParameterizedTest
         @ValueSource(strings = {"", "   "})
         void rejectsBlankDateAndUpdatesNothing(String appliedOn) {
@@ -374,7 +373,6 @@ class JobApplicationToolsTest {
                             + "técnica (prometido até 2026-12-01) (id: " + acme.id() + ")");
         }
 
-        // Em branco não é "manter": seria confirmar uma alteração que não aconteceu
         @ParameterizedTest
         @ValueSource(strings = {"", "   "})
         void rejectsBlankDateAndUpdatesNothing(String blank) {

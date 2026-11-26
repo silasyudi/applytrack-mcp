@@ -166,7 +166,6 @@ public class JobApplicationTools {
             @McpToolParam(description = UpdateStep.FEEDBACK_EXPECTED_BY, required = false) String feedbackExpectedBy,
             @McpToolParam(description = UpdateStep.NOTES, required = false) String notes
     ) {
-        // Em branco não é "manter": a data errada viraria uma confirmação falsa
         var change = new StepChange(state,
                 DateParam.optional("scheduledFor", scheduledFor),
                 DateParam.optional("completedOn", completedOn),

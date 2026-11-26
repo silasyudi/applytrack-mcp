@@ -17,7 +17,7 @@ public class BeanConfig {
         return new JobApplicationService(repository, clock);
     }
 
-    // Fuso fixo: a AWS roda em UTC, e à noite já seria o dia seguinte
+    // Fuso fixo: num servidor em UTC, à noite já seria o dia seguinte
     @Bean
     Clock clock() {
         return Clock.system(ZoneId.of("America/Sao_Paulo"));

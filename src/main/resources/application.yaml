@@ -19,7 +19,7 @@ logging:
     name: ${user.home}/.applytrack-mcp/applytrack-mcp.log
 
 
-# Padrão: DynamoDB Local do compose.yaml. Na AWS, endpoint vazio e create-table false (a tabela virá do Terraform)
+# Padrão: DynamoDB Local do compose.yaml
 applytrack:
   dynamodb:
     endpoint: http://localhost:8000

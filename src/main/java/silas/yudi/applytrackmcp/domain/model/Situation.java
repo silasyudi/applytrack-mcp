@@ -1,6 +1,6 @@
 package silas.yudi.applytrackmcp.domain.model;
 
-/** Rótulo fechado ao lado do status livre, para filtrar com segurança. Não valida transições. */
+/** Informada pelo usuário: não muda sozinha com as etapas. Não valida transições. */
 public enum Situation {
     /** Processo em andamento. */
     ACTIVE,

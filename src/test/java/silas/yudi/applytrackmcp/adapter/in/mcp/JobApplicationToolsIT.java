@@ -510,7 +510,7 @@ class JobApplicationToolsIT {
             expected.put("waitingFor", "COMPANY");
             expected.put("lastActivityOn", "2026-11-19");
             var id = (String) found.getFirst().get("id");
-            assertThat(UUID.fromString(id)).hasToString(id); // o id é um UUID válido
+            assertThat(UUID.fromString(id)).hasToString(id);
             expected.put("id", id);
             assertThat(found).containsExactly(expected);
         }
