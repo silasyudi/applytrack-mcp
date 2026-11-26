@@ -445,6 +445,14 @@ class JobApplicationToolsIT {
         }
 
         @Test
+        void findsTermOnlyInRequirementName() throws IOException {
+            register(ACME);
+            register(BETA);
+
+            assertThat(searchAndGet(Map.of("term", "ingles"))).containsExactly(BETA);
+        }
+
+        @Test
         void returnsOnceAnApplicationThatMatchesInSeveralFieldsAndTimes() throws IOException {
             var everywhere = new HashMap<>(BETA);
             everywhere.put("company", "Kafka House");
@@ -461,6 +469,16 @@ class JobApplicationToolsIT {
             register(ACME);
 
             assertThat(searchAndGet(Map.of("term", "unknown"))).isEmpty();
+        }
+
+        // Contrato, faixa, link, plataforma, status, etapas e nível dos requisitos ficam fora da busca
+        @Test
+        void doesNotFindTermsThatAreOnlyInOtherFields() throws IOException {
+            register(BETA);
+
+            for (var term : List.of("pj", "15.000", "jobs/2", "whatsapp", "aguardando", "pelo", "avancado", "desirable")) {
+                assertThat(searchAndGet(Map.of("term", term))).as(term).isEmpty();
+            }
         }
 
         @Test
@@ -630,6 +648,19 @@ class JobApplicationToolsIT {
 
             var expected = new HashMap<>(ACME);
             expected.put("link", null);
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
+        void addsALinkToAnApplicationWithoutLink() throws IOException {
+            var withoutLink = new HashMap<>(ACME);
+            withoutLink.remove("link");
+            register(withoutLink);
+
+            assertThat(call(UPDATE, Map.of("id", idOf("acme"), "link", "https://acme.com/jobs/9")).isError()).isFalse();
+
+            var expected = new HashMap<>(ACME);
+            expected.put("link", "https://acme.com/jobs/9");
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 

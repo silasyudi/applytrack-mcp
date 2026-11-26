@@ -33,14 +33,19 @@ public class JobApplicationService {
         repository.save(application);
     }
 
-    /** Busca por trecho da empresa, do cliente final, do cargo ou da descrição; sem termo, lista tudo. Mais recentes primeiro. */
+    /**
+     * Busca por trecho da empresa, do cliente final, do cargo, da descrição ou do nome de um requisito;
+     * sem termo, lista tudo. Mais recentes primeiro.
+     */
     public List<JobApplication> search(String term) {
         var normalizedTerm = term == null ? "" : normalize(term);
         return repository.findAll().stream()
                 .filter(application -> normalize(application.posting().company()).contains(normalizedTerm)
                         || normalize(application.posting().finalClient()).contains(normalizedTerm)
                         || normalize(application.posting().jobTitle()).contains(normalizedTerm)
-                        || normalize(application.posting().description()).contains(normalizedTerm))
+                        || normalize(application.posting().description()).contains(normalizedTerm)
+                        || application.posting().requirements().stream()
+                                .anyMatch(requirement -> normalize(requirement.name()).contains(normalizedTerm)))
                 .sorted(MOST_RECENT_FIRST)
                 .toList();
     }

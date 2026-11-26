@@ -16,6 +16,8 @@ import silas.yudi.applytrackmcp.domain.model.ContentChange;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
 import silas.yudi.applytrackmcp.domain.model.JobPosting;
+import silas.yudi.applytrackmcp.domain.model.Requirement;
+import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.StatusChange;
 
@@ -200,6 +202,21 @@ class JobApplicationServiceTest {
             assertThat(service.search(term)).containsExactly(inDescription);
         }
 
+        // A lista extraída usa o nome oficial, que nem sempre está escrito igual na descrição
+        @ParameterizedTest
+        @ValueSource(strings = {"Kafka", "kafka", "SPRING BOOT", " Inglês ", "ingles"})
+        void findsTermOnlyInRequirementName(String term) {
+            var inRequirements = new JobApplication(
+                    new JobPosting("Gama", null, "Analista", null, null, null, null, "Vaga administrativa", List.of(
+                            new Requirement("Kafka", "Sênior", Importance.REQUIRED),
+                            new Requirement("Spring Boot", null, Importance.DESIRABLE),
+                            new Requirement("Inglês", "C1", Importance.UNSPECIFIED))),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            when(repository.findAll()).thenReturn(List.of(acme, inRequirements));
+
+            assertThat(service.search(term)).containsExactly(inRequirements);
+        }
+
         @Test
         void returnsOnceAnApplicationThatMatchesInEveryField() {
             var everywhere = new JobApplication(
@@ -221,10 +238,29 @@ class JobApplicationServiceTest {
             assertThat(service.search("kafka")).containsExactly(repeated);
         }
 
+        @Test
+        void returnsOnceAnApplicationWithTheTermInRequirementsAndDescription() {
+            var both = new JobApplication(
+                    new JobPosting("Gama", null, "Analista", null, null, null, null, "Experiência com Kafka", List.of(
+                            new Requirement("Kafka", null, Importance.REQUIRED),
+                            new Requirement("Kafka Streams", null, Importance.DESIRABLE))),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            when(repository.findAll()).thenReturn(List.of(both, acme));
+
+            assertThat(service.search("kafka")).containsExactly(both);
+        }
+
+        // Só empresa, cliente final, cargo, descrição e nomes dos requisitos entram na busca
         @ParameterizedTest
-        @ValueSource(strings = {"Gupy", "https", "2026"})
+        @ValueSource(strings = {"Pleno", "CLT", "9.000", "https", "Gupy", "2026", "Entrevista", "Avançado", "REQUIRED",
+                "Feita"})
         void doesNotSearchByOtherFields(String term) {
-            when(repository.findAll()).thenReturn(List.of(acme));
+            var detailed = new JobApplication(
+                    new JobPosting("Acme", null, "Java Developer", "Pleno", "CLT", "R$ 9.000", "https://acme.com/jobs/1",
+                            "Full description", List.of(new Requirement("Java", "Avançado", Importance.REQUIRED))),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica marcada",
+                            null, null, List.of(new ProcessStep("Feita a triagem", null, true, "Feita por telefone"))));
+            when(repository.findAll()).thenReturn(List.of(detailed));
 
             assertThat(service.search(term)).isEmpty();
         }

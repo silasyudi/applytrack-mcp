@@ -52,8 +52,10 @@ public class JobApplicationTools {
             @McpToolParam(description = "Link da vaga, se houver", required = false) String link,
             @McpToolParam(description = "Descrição completa da vaga, sem resumir") String description,
             @McpToolParam(description = "Requisitos citados na descrição: tecnologias, idiomas, certificações. "
-                    + "Extraia só o que está escrito, sem inventar", required = false) List<RequirementInput> requirements,
-            @McpToolParam(description = "Por onde se candidatou: Gupy, LinkedIn, e-mail, WhatsApp etc.") String platform,
+                    + "Extraia só o que está escrito, sem inventar", required = false)
+            List<RequirementInput> requirements,
+            @McpToolParam(description = "Por onde se candidatou: Gupy, LinkedIn, e-mail, WhatsApp etc.")
+            String platform,
             @McpToolParam(description = "Data em que o usuário se candidatou, no formato AAAA-MM-DD. "
                     + "Se ele não disse quando, pergunte") String appliedOn,
             @McpToolParam(description = "Status atual em texto livre, como o usuário descreveria: \"Entrevista "
@@ -77,7 +79,8 @@ public class JobApplicationTools {
     @McpTool(name = "search_job_applications",
             description = "Busca candidaturas já registradas, por exemplo para responder \"já me candidatei nesta "
                     + "empresa?\" ou \"quais vagas pedem Kafka?\". Procura o termo como trecho na empresa, no "
-                    + "cliente final, no cargo e na descrição da vaga, ignorando acentos e maiúsculas; por ser "
+                    + "cliente final, no cargo, na descrição da vaga e nos nomes dos requisitos, ignorando acentos e "
+                    + "maiúsculas; por ser "
                     + "trecho, \"java\" também encontra \"JavaScript\". Sem termo, lista todas. "
                     + "Resultados da candidatura mais recente para a mais antiga. "
                     + "Cada resultado traz id, vaga (sem descrição e sem faixa salarial), requisitos e status; "
@@ -85,8 +88,9 @@ public class JobApplicationTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false,
                     openWorldHint = false))
     public List<JobApplicationSummary> searchJobApplications(
-            @McpToolParam(description = "Um único trecho a procurar na empresa, no cliente final, no cargo ou na "
-                    + "descrição. Para várias tecnologias, faça uma busca para cada", required = false) String term) {
+            @McpToolParam(description = "Um único trecho a procurar na empresa, no cliente final, no cargo, na "
+                    + "descrição ou nos nomes dos requisitos. Para várias tecnologias, faça uma busca para cada",
+                    required = false) String term) {
         return service.search(term).stream().map(JobApplicationSummary::from).toList();
     }
 

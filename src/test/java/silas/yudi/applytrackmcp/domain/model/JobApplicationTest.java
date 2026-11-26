@@ -104,6 +104,17 @@ class JobApplicationTest {
         }
 
         @Test
+        void addsALinkToAnApplicationWithoutLink() {
+            var withoutLink = acme().update(new JobApplicationChanges(null, null, null, null, null, null, "",
+                    null, null, null, null, null), TODAY);
+
+            var updated = withoutLink.update(new JobApplicationChanges(null, null, null, null, null, null, "https://acme.com/2",
+                    null, null, null, null, null), TODAY);
+
+            assertThat(updated.posting().link()).isEqualTo("https://acme.com/2");
+        }
+
+        @Test
         void updateCannotEraseRequiredField() {
             assertThatIllegalArgumentException()
                     .isThrownBy(() -> acme().update(new JobApplicationChanges(" ", null, null, null, null, null,
