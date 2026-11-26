@@ -5,6 +5,7 @@ import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import java.util.List;
 import java.util.Optional;
 
+/** Toda operação lança {@link StorageUnavailableException} quando o banco não responde. */
 public interface JobApplicationRepository {
 
     /** Grava uma candidatura nova ou substitui a que tem o mesmo id. */

@@ -1,9 +1,14 @@
 package silas.yudi.applytrackmcp.adapter.out.dynamodb;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import silas.yudi.applytrackmcp.application.port.out.StorageUnavailableException;
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
 import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
@@ -30,6 +35,7 @@ import java.util.stream.IntStream;
 
 import static silas.yudi.applytrackmcp.support.JobPostingBuilder.aPosting;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * Roda contra o DynamoDB Local no Docker.
@@ -62,7 +68,7 @@ class DynamoDbJobApplicationRepositoryIT {
         table = DynamoDbEnhancedClient.builder().dynamoDbClient(client).build()
                 .table("test-" + UUID.randomUUID(), TableSchema.fromBean(JobApplicationItem.class));
         table.createTable();
-        repository = new DynamoDbJobApplicationRepository(table);
+        repository = new DynamoDbJobApplicationRepository(table, false, DynamoDbLocalContainer.endpoint());
     }
 
     @AfterEach
@@ -260,6 +266,94 @@ class DynamoDbJobApplicationRepositoryIT {
             repository.deleteById("unknown");
 
             assertThat(repository.findAll()).containsExactly(acme);
+        }
+    }
+
+    @Nested
+    class TableCreation {
+
+        // O servidor sobe mesmo com o banco fora: a tabela só é criada quando é usada
+        @Test
+        void createsTheMissingTableOnFirstUse() {
+            var missing = DynamoDbEnhancedClient.builder().dynamoDbClient(client).build()
+                    .table("test-" + UUID.randomUUID(), TableSchema.fromBean(JobApplicationItem.class));
+            var creating = new DynamoDbJobApplicationRepository(missing, true, DynamoDbLocalContainer.endpoint());
+
+            creating.save(acme);
+
+            assertThat(creating.findAll()).containsExactly(acme);
+            missing.deleteTable();
+        }
+
+        @Test
+        void usesTheTableThatAlreadyExists() {
+            repository.save(acme);
+            var creating = new DynamoDbJobApplicationRepository(table, true, DynamoDbLocalContainer.endpoint());
+
+            assertThat(creating.findAll()).containsExactly(acme);
+        }
+    }
+
+    // A mensagem chega à IA como resposta da tool: precisa dizer o que fazer
+    @Nested
+    class UnavailableDatabase {
+
+        private static final String CLOSED = "http://localhost:1";
+        private static final String LOCAL_HINT = "Banco de dados indisponível em http://localhost:1. Confira se o Docker "
+                + "está aberto e se o contêiner do DynamoDB está rodando (docker compose up -d na pasta do compose.yaml)";
+
+        private DynamoDbClient closedClient;
+
+        @BeforeEach
+        void connectToClosedPort() {
+            closedClient = DynamoDbClient.builder()
+                    .endpointOverride(URI.create(CLOSED))
+                    .region(Region.US_EAST_1)
+                    .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("local", "local")))
+                    .build();
+        }
+
+        @AfterEach
+        void close() {
+            closedClient.close();
+        }
+
+        @Test
+        void everyOperationExplainsHowToStartTheLocalDatabase() {
+            var unavailable = new DynamoDbJobApplicationRepository(closedTable(), false, CLOSED);
+
+            assertUnavailable(() -> unavailable.save(acme), LOCAL_HINT);
+            assertUnavailable(() -> unavailable.findById("id-1"), LOCAL_HINT);
+            assertUnavailable(unavailable::findAll, LOCAL_HINT);
+            assertUnavailable(() -> unavailable.deleteById("id-1"), LOCAL_HINT);
+        }
+
+        @Test
+        void creatingTheTableAlsoExplains() {
+            var unavailable = new DynamoDbJobApplicationRepository(closedTable(), true, CLOSED);
+
+            assertUnavailable(unavailable::findAll, LOCAL_HINT);
+        }
+
+        // Sem endpoint é o DynamoDB da AWS: Docker não faz sentido
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        void withoutEndpointDoesNotMentionDocker(String endpoint) {
+            var unavailable = new DynamoDbJobApplicationRepository(closedTable(), false, endpoint);
+
+            assertUnavailable(unavailable::findAll, "Banco de dados indisponível. Tente novamente em instantes");
+        }
+
+        private DynamoDbTable<JobApplicationItem> closedTable() {
+            return DynamoDbEnhancedClient.builder().dynamoDbClient(closedClient).build()
+                    .table("job-applications", TableSchema.fromBean(JobApplicationItem.class));
+        }
+
+        private static void assertUnavailable(ThrowingCallable operation, String message) {
+            assertThatExceptionOfType(StorageUnavailableException.class)
+                    .isThrownBy(operation)
+                    .withMessage(message);
         }
     }
 }

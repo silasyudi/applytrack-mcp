@@ -89,10 +89,14 @@ class JobApplicationToolsIT {
 
     @BeforeEach
     void startServer() {
+        startServer(DynamoDbLocalContainer.endpoint());
+    }
+
+    private void startServer(String endpoint) {
         var java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         var parameters = ServerParameters.builder(java)
                 .args("-jar", System.getProperty("app.jar"), "--logging.file.name=target/mcp-server-it.log",
-                        "--applytrack.dynamodb.endpoint=" + DynamoDbLocalContainer.endpoint(),
+                        "--applytrack.dynamodb.endpoint=" + endpoint,
                         "--applytrack.dynamodb.table-name=" + tableName)
                 .build();
         client = McpClient.sync(new StdioClientTransport(parameters, McpJsonDefaults.getMapper()))
@@ -149,6 +153,25 @@ class JobApplicationToolsIT {
                     ADD_STEP, List.of(false, false, false),
                     UPDATE_STEP, List.of(false, true, false),
                     DELETE, List.of(false, true, false)));
+        }
+    }
+
+    // Docker parado: o servidor sobe mesmo assim, e a tool diz à IA o que o usuário precisa fazer
+    @Nested
+    class UnavailableDatabase {
+
+        @Test
+        void startsWithoutTheDatabaseAndExplainsHowToStartIt() {
+            stopServer();
+            startServer("http://localhost:1");
+
+            var result = call(SEARCH, Map.of());
+
+            assertThat(result.isError()).isTrue();
+            // A primeira linha orienta; o Spring AI acrescenta a causa técnica na seguinte
+            assertThat(text(result).lines().findFirst()).contains("Banco de dados indisponível em "
+                    + "http://localhost:1. Confira se o Docker está aberto e se o contêiner do DynamoDB está rodando "
+                    + "(docker compose up -d na pasta do compose.yaml)");
         }
     }
 

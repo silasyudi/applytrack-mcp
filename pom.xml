@@ -88,6 +88,7 @@
             <!--
                 Copia o JAR para dist/ com nome fixo, para a configuração do cliente MCP não mudar a cada versão
                 nem quebrar no "mvnw clean". Fica depois do spring-boot-maven-plugin: copia o JAR já executável.
+                Overwrite: o Spring Boot grava o JAR com data fixa (build reproduzível), e sem ele o Ant pularia a cópia.
                 Se o servidor MCP estiver rodando, o Windows trava o arquivo: a cópia só avisa e o build segue.
             -->
             <plugin>
@@ -104,6 +105,7 @@
                             <target>
                                 <copy file="${project.build.directory}/${project.build.finalName}.jar"
                                       tofile="${project.basedir}/dist/${project.artifactId}.jar"
+                                      overwrite="true"
                                       failonerror="false"/>
                             </target>
                         </configuration>
