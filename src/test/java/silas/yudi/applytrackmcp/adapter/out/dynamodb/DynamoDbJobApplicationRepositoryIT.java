@@ -6,7 +6,11 @@ import org.junit.jupiter.api.Test;
 import silas.yudi.applytrackmcp.DynamoDbLocalContainer;
 import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
+import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
+import silas.yudi.applytrackmcp.domain.model.JobPosting;
+import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
+import silas.yudi.applytrackmcp.domain.model.Situation;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -29,9 +33,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DynamoDbJobApplicationRepositoryIT {
 
     private final JobApplication acme = new JobApplication(
-            "Acme", "Java Developer", "Acme description", "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20), List.of());
+                new JobPosting("Acme", "Java Developer", "Acme description", "https://acme.com/jobs/1", List.of()),
+                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
     private final JobApplication beta = new JobApplication(
-            "Soluções Beta", "Pessoa Desenvolvedora Sênior", "Descrição com\nduas linhas e 🚀", "WhatsApp", null, LocalDate.of(2026, 11, 20), List.of());
+                new JobPosting("Soluções Beta", "Pessoa Desenvolvedora Sênior", "Descrição com\nduas linhas e 🚀", null, List.of()),
+                ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
 
     private DynamoDbClient client;
     private DynamoDbTable<JobApplicationItem> table;
@@ -86,8 +92,9 @@ class DynamoDbJobApplicationRepositoryIT {
 
     @Test
     void doesNotOverwriteAnEqualApplicationWithAnotherId() {
-        var sameData = new JobApplication("Acme", "Java Developer", "Acme description", "Gupy",
-                "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20), List.of());
+        var sameData = new JobApplication(
+                new JobPosting("Acme", "Java Developer", "Acme description", "https://acme.com/jobs/1", List.of()),
+                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
         repository.save(acme);
         repository.save(sameData);
 
@@ -98,7 +105,9 @@ class DynamoDbJobApplicationRepositoryIT {
     @Test
     void readsMoreThanOnePage() {
         var large = IntStream.range(0, 5)
-                .mapToObj(i -> new JobApplication("Company " + i, "Java Developer", "x".repeat(300_000), "Gupy", null, LocalDate.of(2026, 11, 20), List.of()))
+                .mapToObj(i -> new JobApplication(
+                new JobPosting("Company " + i, "Java Developer", "x".repeat(300_000), null, List.of()),
+                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))))
                 .toList();
         large.forEach(repository::save);
 
@@ -107,11 +116,13 @@ class DynamoDbJobApplicationRepositoryIT {
     }
 
     @Test
-    void storesDateAsIsoText() {
+    void storesPostingAndProcessAsMapsAndDateAsIsoText() {
         repository.save(acme);
 
         var item = client.scan(request -> request.tableName(table.tableName())).items().getFirst();
-        assertThat(item.get("appliedOn")).isEqualTo(AttributeValue.fromS("2026-11-20"));
+        assertThat(item).containsOnlyKeys("id", "posting", "process");
+        assertThat(item.get("posting").m()).containsEntry("company", AttributeValue.fromS("Acme"));
+        assertThat(item.get("process").m()).containsEntry("appliedOn", AttributeValue.fromS("2026-11-20"));
     }
 
     @Test
@@ -131,8 +142,9 @@ class DynamoDbJobApplicationRepositoryIT {
 
     @Test
     void replacesApplicationWithTheSameIdAndRemovesTheLink() {
-        var changed = new JobApplication(acme.id(), "Acme", "Analyst", "New description", "LinkedIn", null,
-                LocalDate.of(2026, 11, 21), List.of());
+        var changed = new JobApplication(acme.id(),
+                new JobPosting("Acme", "Analyst", "New description", null, List.of()),
+                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 21)));
         repository.save(acme);
         repository.save(beta);
         repository.save(changed);
@@ -162,28 +174,49 @@ class DynamoDbJobApplicationRepositoryIT {
 
     @Test
     void savesAndReadsRequirementsInOrderWithEveryImportanceAndMissingLevel() {
-        var withRequirements = new JobApplication("Acme", "Java Developer", "Description", "Gupy", null,
-                LocalDate.of(2026, 11, 20), List.of(
+        var withRequirements = new JobApplication(
+                new JobPosting("Acme", "Java Developer", "Description", null, List.of(
                         new Requirement("Java", "Avançado", Importance.REQUIRED),
                         new Requirement("Inglês", "C1", Importance.DESIRABLE),
-                        new Requirement("Node.js", null, Importance.UNSPECIFIED)));
+                        new Requirement("Node.js", null, Importance.UNSPECIFIED))),
+                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
         repository.save(withRequirements);
 
         assertThat(repository.findById(withRequirements.id())).contains(withRequirements);
     }
 
-    // Formato gravado antes da lista existir
+    // Item gravado sem as listas (requisitos e etapas)
     @Test
-    void readsItemSavedWithoutRequirements() {
+    void readsItemSavedWithoutLists() {
         client.putItem(request -> request.tableName(table.tableName()).item(Map.of(
                 "id", AttributeValue.fromS("1"),
-                "company", AttributeValue.fromS("Acme"),
-                "jobTitle", AttributeValue.fromS("Java Developer"),
-                "description", AttributeValue.fromS("Description"),
-                "platform", AttributeValue.fromS("Gupy"),
-                "appliedOn", AttributeValue.fromS("2026-11-20"))));
+                "posting", AttributeValue.fromM(Map.of(
+                        "company", AttributeValue.fromS("Acme"),
+                        "jobTitle", AttributeValue.fromS("Java Developer"),
+                        "description", AttributeValue.fromS("Description"))),
+                "process", AttributeValue.fromM(Map.of(
+                        "platform", AttributeValue.fromS("Gupy"),
+                        "appliedOn", AttributeValue.fromS("2026-11-20"),
+                        "status", AttributeValue.fromS("Candidatura enviada"),
+                        "statusUpdatedOn", AttributeValue.fromS("2026-11-20"),
+                        "situation", AttributeValue.fromS("ACTIVE"))))));
 
-        assertThat(repository.findAll()).containsExactly(new JobApplication(
-                "1", "Acme", "Java Developer", "Description", "Gupy", null, LocalDate.of(2026, 11, 20), List.of()));
+        assertThat(repository.findAll()).containsExactly(new JobApplication("1",
+                new JobPosting("Acme", "Java Developer", "Description", null, List.of()),
+                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))));
+    }
+
+    @Test
+    void savesAndReadsTheWholeProcess() {
+        var application = new JobApplication(
+                new JobPosting("Acme", "Java Developer", "Description", null, List.of()),
+                new ApplicationProcess("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica realizada, aguardando feedback",
+                        LocalDate.of(2026, 11, 24), Situation.OFFER, List.of(
+                                new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
+                                new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Kafka"),
+                                new ProcessStep("Entrevista com líder", null, false, null))));
+        repository.save(application);
+
+        assertThat(repository.findById(application.id())).contains(application);
     }
 }

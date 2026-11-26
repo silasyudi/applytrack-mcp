@@ -15,7 +15,7 @@ import java.util.Locale;
 public class JobApplicationService {
 
     private static final Comparator<JobApplication> MOST_RECENT_FIRST =
-            Comparator.comparing(JobApplication::appliedOn).reversed();
+            Comparator.comparing((JobApplication application) -> application.process().appliedOn()).reversed();
 
     private final JobApplicationRepository repository;
     private final Clock clock;
@@ -26,7 +26,8 @@ public class JobApplicationService {
     }
 
     public void register(JobApplication application) {
-        rejectFuture(application.appliedOn());
+        rejectFuture("A data da candidatura", application.process().appliedOn());
+        rejectFuture("A data do status", application.process().statusUpdatedOn());
         repository.save(application);
     }
 
@@ -39,9 +40,12 @@ public class JobApplicationService {
         requireId(id);
         // Só a data nova: um registro com data errada ainda pode ter os outros campos corrigidos
         if (changes.appliedOn() != null) {
-            rejectFuture(changes.appliedOn());
+            rejectFuture("A data da candidatura", changes.appliedOn());
         }
-        var updated = find(id).update(changes);
+        if (changes.statusUpdatedOn() != null) {
+            rejectFuture("A data do status", changes.statusUpdatedOn());
+        }
+        var updated = find(id).update(changes, LocalDate.now(clock));
         repository.save(updated);
         return updated;
     }
@@ -64,9 +68,9 @@ public class JobApplicationService {
         return repository.findById(id).orElseThrow(() -> new JobApplicationNotFoundException(id));
     }
 
-    private void rejectFuture(LocalDate appliedOn) {
-        if (appliedOn.isAfter(LocalDate.now(clock))) {
-            throw new IllegalArgumentException("A data da candidatura não pode ser futura: " + appliedOn);
+    private void rejectFuture(String what, LocalDate date) {
+        if (date.isAfter(LocalDate.now(clock))) {
+            throw new IllegalArgumentException(what + " não pode ser futura: " + date);
         }
     }
 
@@ -74,9 +78,9 @@ public class JobApplicationService {
     public List<JobApplication> search(String term) {
         var normalizedTerm = term == null ? "" : normalize(term);
         return repository.findAll().stream()
-                .filter(application -> normalize(application.company()).contains(normalizedTerm)
-                        || normalize(application.jobTitle()).contains(normalizedTerm)
-                        || normalize(application.description()).contains(normalizedTerm))
+                .filter(application -> normalize(application.posting().company()).contains(normalizedTerm)
+                        || normalize(application.posting().jobTitle()).contains(normalizedTerm)
+                        || normalize(application.posting().description()).contains(normalizedTerm))
                 .sorted(MOST_RECENT_FIRST)
                 .toList();
     }
