@@ -10,12 +10,6 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 
 class RequirementTest {
 
-    @Test
-    void requirementKeepsDataWithoutSurroundingSpaces() {
-        assertThat(new Requirement(" Spring Boot ", " Avançado ", Importance.REQUIRED))
-                .isEqualTo(new Requirement("Spring Boot", "Avançado", Importance.REQUIRED));
-    }
-
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", "   "})
@@ -23,6 +17,12 @@ class RequirementTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new Requirement(name, "Avançado", Importance.REQUIRED))
                 .withMessage("Campo obrigatório: requirement.name");
+    }
+
+    @Test
+    void requirementKeepsDataWithoutSurroundingSpaces() {
+        assertThat(new Requirement(" Spring Boot ", " Avançado ", Importance.REQUIRED))
+                .isEqualTo(new Requirement("Spring Boot", "Avançado", Importance.REQUIRED));
     }
 
     @ParameterizedTest

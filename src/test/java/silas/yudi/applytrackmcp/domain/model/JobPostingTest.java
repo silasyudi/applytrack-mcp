@@ -21,6 +21,39 @@ class JobPostingTest {
     private static final String SALARY_WITHOUT_CONTRACT =
             "Para informar a faixa salarial, informe também o tipo de contrato";
 
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void requiresCompany(String company) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new JobApplication(
+                new JobPosting(company, null, "Java Developer", null, null, null, null, "Description", List.of()),
+                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                .withMessage("Campo obrigatório: company");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void requiresJobTitle(String jobTitle) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new JobApplication(
+                new JobPosting("Acme", null, jobTitle, null, null, null, null, "Description", List.of()),
+                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                .withMessage("Campo obrigatório: jobTitle");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void requiresDescription(String description) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new JobApplication(
+                new JobPosting("Acme", null, "Java Developer", null, null, null, null, description, List.of()),
+                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                .withMessage("Campo obrigatório: description");
+    }
+
     @Test
     void keepsPostingFieldsWithoutSurroundingSpaces() {
         var posting = posting(" Banco Alfa ", " Sênior ", " PJ ", " R$ 15.000 a R$ 18.000 ");
@@ -43,6 +76,11 @@ class JobPostingTest {
         assertThat(posting.salaryRange()).isNull();
     }
 
+    @Test
+    void contractTypeAloneIsAccepted() {
+        assertThat(posting(null, null, "CLT", null).contractType()).isEqualTo("CLT");
+    }
+
     // "R$ 15 mil" muda muito entre CLT e PJ
     @ParameterizedTest
     @NullSource
@@ -53,58 +91,20 @@ class JobPostingTest {
                 .withMessage(SALARY_WITHOUT_CONTRACT);
     }
 
-    @Test
-    void contractTypeAloneIsAccepted() {
-        assertThat(posting(null, null, "CLT", null).contractType()).isEqualTo("CLT");
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresCompany(String company) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting(company, null, "Java Developer", null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: company");
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresJobTitle(String jobTitle) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, jobTitle, null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: jobTitle");
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresDescription(String description) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, description, null, List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: description");
-    }
-
     // Há processos que só chegam por e-mail ou WhatsApp
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", "   "})
     void linkIsOptional(String link) {
         assertThat(new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", link, List.of()),
+                new JobPosting("Acme", null, "Java Developer", null, null, null, link, "Description", List.of()),
                 ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20))).posting().link()).isNull();
     }
 
     @Test
     void requirementsAreOptional() {
         var application = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, null),
+                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", null),
                 ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
 
         assertThat(application.posting().requirements()).isEmpty();
@@ -114,7 +114,7 @@ class JobPostingTest {
     void keepsRequirementsInOrderAndProtectedFromOutsideChanges() {
         var requirements = new ArrayList<>(List.of(JAVA, ENGLISH));
         var application = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, requirements),
+                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", requirements),
                 ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
 
         requirements.add(NODE);
@@ -132,13 +132,13 @@ class JobPostingTest {
 
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, requirements),
+                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", requirements),
                 ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
                 .withMessage("Campo obrigatório: requirement");
     }
 
     private static JobPosting posting(String finalClient, String seniority, String contractType, String salaryRange) {
-        return new JobPosting("Acme", finalClient, "Java Developer", seniority, contractType, salaryRange,
-                "Description", null, List.of());
+        return new JobPosting("Acme", finalClient, "Java Developer", seniority, contractType, salaryRange, null,
+                "Description", List.of());
     }
 }

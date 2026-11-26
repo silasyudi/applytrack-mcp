@@ -30,6 +30,14 @@ class StatusChangeTest {
                 .isEqualTo(new StatusChange("Reprovado", DAY, Situation.REJECTED));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void blankStatusIsRejectedEvenAlone(String status) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> StatusChange.of(status, null, null))
+                .withMessage("Campo obrigatório: status");
+    }
+
     @Test
     void statusDateWithoutStatusIsRejected() {
         assertThatIllegalArgumentException()
@@ -49,13 +57,5 @@ class StatusChangeTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> StatusChange.of(null, DAY, Situation.REJECTED))
                 .withMessage("Para informar a data do status, envie também o status");
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", "   "})
-    void blankStatusIsRejectedEvenAlone(String status) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> StatusChange.of(status, null, null))
-                .withMessage("Campo obrigatório: status");
     }
 }

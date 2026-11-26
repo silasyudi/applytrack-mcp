@@ -125,6 +125,29 @@ class JobApplicationToolsIT {
         }
 
         @Test
+        void keepsApplicationsAfterServerRestart() throws IOException {
+            register(ACME);
+
+            stopServer();
+            startServer();
+
+            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
+        }
+
+        @Test
+        void registersApplicationWithoutPostingFields() throws IOException {
+            var minimal = new HashMap<>(BETA);
+            minimal.keySet().removeAll(List.of("finalClient", "seniority", "contractType", "salaryRange"));
+            register(minimal);
+
+            var expected = new HashMap<String, Object>(minimal);
+            for (var key : List.of("finalClient", "seniority", "contractType", "salaryRange")) {
+                expected.put(key, null);
+            }
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
         void registersApplicationWithoutLink() throws IOException {
             var withoutLink = new HashMap<>(ACME);
             withoutLink.remove("link");
@@ -136,78 +159,14 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void rejectsMissingDateAndRegistersNothing() throws IOException {
-            var invalid = new HashMap<>(ACME);
-            invalid.remove("appliedOn");
+        void registersApplicationWithoutRequirements() throws IOException {
+            var withoutRequirements = new HashMap<>(BETA);
+            withoutRequirements.remove("requirements");
+            register(withoutRequirements);
 
-            assertThat(call(REGISTER, invalid).isError()).isTrue();
-            assertThat(searchAndGet(Map.of())).isEmpty();
-        }
-
-        @Test
-        void rejectsInvalidDateAndRegistersNothing() throws IOException {
-            var invalid = new HashMap<>(ACME);
-            invalid.put("appliedOn", "20/11/2026");
-
-            var result = call(REGISTER, invalid);
-
-            assertThat(result.isError()).isTrue();
-            assertThat(text(result).lines().distinct())
-                    .containsExactly("Data inválida: 20/11/2026. Use o formato AAAA-MM-DD");
-            assertThat(searchAndGet(Map.of())).isEmpty();
-        }
-
-        @Test
-        void rejectsBlankRequiredFieldAndRegistersNothing() throws IOException {
-            var invalid = new HashMap<>(ACME);
-            invalid.put("company", " ");
-
-            var result = call(REGISTER, invalid);
-
-            assertThat(result.isError()).isTrue();
-            // O Spring AI repete a mensagem em duas linhas
-            assertThat(text(result).lines().distinct()).containsExactly("Campo obrigatório: company");
-            assertThat(searchAndGet(Map.of())).isEmpty();
-        }
-
-        @Test
-        void rejectsMissingRequiredFieldAndRegistersNothing() throws IOException {
-            var invalid = new HashMap<>(ACME);
-            invalid.remove("platform");
-
-            // A mensagem vem da validação do schema e muda com o idioma: não é verificada
-            assertThat(call(REGISTER, invalid).isError()).isTrue();
-            assertThat(searchAndGet(Map.of())).isEmpty();
-        }
-
-        @Test
-        void keepsApplicationsAfterServerRestart() throws IOException {
-            register(ACME);
-
-            stopServer();
-            startServer();
-
-            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
-        }
-
-        @Test
-        void rejectsFutureDateOnRegistration() throws IOException {
-            var invalid = new HashMap<>(ACME);
-            invalid.put("appliedOn", "2999-01-01");
-            invalid.remove("statusUpdatedOn"); // sem ela, a data do status acompanha a da candidatura
-
-            var result = call(REGISTER, invalid);
-
-            assertThat(result.isError()).isTrue();
-            assertThat(text(result).lines().distinct())
-                    .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
-            assertThat(searchAndGet(Map.of())).isEmpty();
-        }
-
-        @Test
-        void rejectsRegistrationWithoutAnyArgument() throws IOException {
-            assertThat(call(REGISTER, Map.of()).isError()).isTrue();
-            assertThat(searchAndGet(Map.of())).isEmpty();
+            var expected = new HashMap<>(BETA);
+            expected.put("requirements", List.of());
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
         @Test
@@ -226,14 +185,73 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void registersApplicationWithoutRequirements() throws IOException {
-            var withoutRequirements = new HashMap<>(BETA);
-            withoutRequirements.remove("requirements");
-            register(withoutRequirements);
+        void registersWithDefaultProcess() throws IOException {
+            var minimal = new HashMap<>(BETA);
+            minimal.keySet().removeAll(List.of("status", "statusUpdatedOn", "situation", "steps"));
+            register(minimal);
 
-            var expected = new HashMap<>(BETA);
-            expected.put("requirements", List.of());
+            var expected = new HashMap<>(minimal);
+            expected.putAll(Map.of("status", "Candidatura enviada", "statusUpdatedOn", "2026-11-20", "situation", "ACTIVE",
+                    "steps", List.of()));
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
+        void acceptsScheduledStepInTheFuture() throws IOException {
+            var scheduled = new HashMap<>(ACME);
+            var step = new HashMap<String, Object>(Map.of("name", "Entrevista com líder", "date", "2999-01-01"));
+            scheduled.put("steps", List.of(step));
+            register(scheduled);
+
+            var expectedStep = new HashMap<>(step);
+            expectedStep.put("done", false);
+            expectedStep.put("notes", null);
+            var expected = new HashMap<>(ACME);
+            expected.put("steps", List.of(expectedStep));
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
+        void rejectsRegistrationWithoutAnyArgument() throws IOException {
+            assertThat(call(REGISTER, Map.of()).isError()).isTrue();
+            assertThat(searchAndGet(Map.of())).isEmpty();
+        }
+
+        @Test
+        void rejectsMissingRequiredFieldAndRegistersNothing() throws IOException {
+            var invalid = new HashMap<>(ACME);
+            invalid.remove("platform");
+
+            // A mensagem vem da validação do schema e muda com o idioma: não é verificada
+            assertThat(call(REGISTER, invalid).isError()).isTrue();
+            assertThat(searchAndGet(Map.of())).isEmpty();
+        }
+
+        @Test
+        void rejectsBlankRequiredFieldAndRegistersNothing() throws IOException {
+            var invalid = new HashMap<>(ACME);
+            invalid.put("company", " ");
+
+            var result = call(REGISTER, invalid);
+
+            assertThat(result.isError()).isTrue();
+            // O Spring AI repete a mensagem em duas linhas
+            assertThat(text(result).lines().distinct()).containsExactly("Campo obrigatório: company");
+            assertThat(searchAndGet(Map.of())).isEmpty();
+        }
+
+        @Test
+        void rejectsSalaryRangeWithoutContractTypeAndChangesNothing() throws IOException {
+            var noContract = new HashMap<>(ACME);
+            noContract.remove("contractType");
+            assertThat(text(call(REGISTER, noContract)).lines().distinct())
+                    .containsExactly("Para informar a faixa salarial, informe também o tipo de contrato");
+
+            register(ACME);
+            var removal = call(UPDATE, Map.of("id", idOf("acme"), "contractType", ""));
+            assertThat(text(removal).lines().distinct())
+                    .containsExactly("Para informar a faixa salarial, informe também o tipo de contrato");
+            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
         }
 
         // A IA precisa classificar cada requisito, nem que seja como UNSPECIFIED
@@ -271,30 +289,53 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void registersWithDefaultProcess() throws IOException {
-            var minimal = new HashMap<>(BETA);
-            minimal.keySet().removeAll(List.of("status", "statusUpdatedOn", "situation", "steps"));
-            register(minimal);
+        void rejectsMissingDateAndRegistersNothing() throws IOException {
+            var invalid = new HashMap<>(ACME);
+            invalid.remove("appliedOn");
 
-            var expected = new HashMap<>(minimal);
-            expected.putAll(Map.of("status", "Candidatura enviada", "statusUpdatedOn", "2026-11-20", "situation", "ACTIVE",
-                    "steps", List.of()));
-            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+            assertThat(call(REGISTER, invalid).isError()).isTrue();
+            assertThat(searchAndGet(Map.of())).isEmpty();
         }
 
         @Test
-        void acceptsScheduledStepInTheFuture() throws IOException {
-            var scheduled = new HashMap<>(ACME);
-            var step = new HashMap<String, Object>(Map.of("name", "Entrevista com líder", "date", "2999-01-01"));
-            scheduled.put("steps", List.of(step));
-            register(scheduled);
+        void rejectsInvalidDateAndRegistersNothing() throws IOException {
+            var invalid = new HashMap<>(ACME);
+            invalid.put("appliedOn", "20/11/2026");
 
-            var expectedStep = new HashMap<>(step);
-            expectedStep.put("done", false);
-            expectedStep.put("notes", null);
-            var expected = new HashMap<>(ACME);
-            expected.put("steps", List.of(expectedStep));
-            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+            var result = call(REGISTER, invalid);
+
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result).lines().distinct())
+                    .containsExactly("Data inválida: 20/11/2026. Use o formato AAAA-MM-DD");
+            assertThat(searchAndGet(Map.of())).isEmpty();
+        }
+
+        @Test
+        void rejectsFutureDateOnRegistration() throws IOException {
+            var invalid = new HashMap<>(ACME);
+            invalid.put("appliedOn", "2999-01-01");
+            invalid.remove("statusUpdatedOn"); // sem ela, a data do status acompanha a da candidatura
+
+            var result = call(REGISTER, invalid);
+
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result).lines().distinct())
+                    .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
+            assertThat(searchAndGet(Map.of())).isEmpty();
+        }
+
+        @Test
+        void rejectsStatusDateBeforeApplicationAndInvalidStatusDate() throws IOException {
+            var before = new HashMap<>(ACME);
+            before.put("statusUpdatedOn", "2026-11-18");
+            var invalid = new HashMap<>(ACME);
+            invalid.put("statusUpdatedOn", "19/11/2026");
+
+            assertThat(text(call(REGISTER, before)).lines().distinct())
+                    .containsExactly("A data do status não pode ser anterior à candidatura: 2026-11-18");
+            assertThat(text(call(REGISTER, invalid)).lines().distinct())
+                    .containsExactly("Data inválida: 19/11/2026. Use o formato AAAA-MM-DD");
+            assertThat(searchAndGet(Map.of())).isEmpty();
         }
 
         @Test
@@ -334,47 +375,6 @@ class JobApplicationToolsIT {
                     .containsExactly("Etapa marcada como feita não pode ter data futura: Técnica (2999-01-01)");
             assertThat(searchAndGet(Map.of())).isEmpty();
         }
-
-        @Test
-        void rejectsStatusDateBeforeApplicationAndInvalidStatusDate() throws IOException {
-            var before = new HashMap<>(ACME);
-            before.put("statusUpdatedOn", "2026-11-18");
-            var invalid = new HashMap<>(ACME);
-            invalid.put("statusUpdatedOn", "19/11/2026");
-
-            assertThat(text(call(REGISTER, before)).lines().distinct())
-                    .containsExactly("A data do status não pode ser anterior à candidatura: 2026-11-18");
-            assertThat(text(call(REGISTER, invalid)).lines().distinct())
-                    .containsExactly("Data inválida: 19/11/2026. Use o formato AAAA-MM-DD");
-            assertThat(searchAndGet(Map.of())).isEmpty();
-        }
-
-        @Test
-        void registersApplicationWithoutPostingFields() throws IOException {
-            var minimal = new HashMap<>(BETA);
-            minimal.keySet().removeAll(List.of("finalClient", "seniority", "contractType", "salaryRange"));
-            register(minimal);
-
-            var expected = new HashMap<String, Object>(minimal);
-            for (var key : List.of("finalClient", "seniority", "contractType", "salaryRange")) {
-                expected.put(key, null);
-            }
-            assertThat(searchAndGet(Map.of())).containsExactly(expected);
-        }
-
-        @Test
-        void rejectsSalaryRangeWithoutContractTypeAndChangesNothing() throws IOException {
-            var noContract = new HashMap<>(ACME);
-            noContract.remove("contractType");
-            assertThat(text(call(REGISTER, noContract)).lines().distinct())
-                    .containsExactly("Para informar a faixa salarial, informe também o tipo de contrato");
-
-            register(ACME);
-            var removal = call(UPDATE, Map.of("id", idOf("acme"), "contractType", ""));
-            assertThat(text(removal).lines().distinct())
-                    .containsExactly("Para informar a faixa salarial, informe também o tipo de contrato");
-            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
-        }
     }
 
     @Nested
@@ -386,10 +386,11 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void findsNothingWhenNoApplicationMatches() throws IOException {
+        void findsAllApplicationsMostRecentFirstWhenThereIsNoTerm() throws IOException {
             register(ACME);
+            register(BETA);
 
-            assertThat(searchAndGet(Map.of("term", "unknown"))).isEmpty();
+            assertThat(searchAndGet(Map.of())).containsExactly(BETA, ACME);
         }
 
         @Test
@@ -401,13 +402,11 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void findsApplicationByTechnologyThatIsOnlyInTheDescription() throws IOException {
-            var generic = new HashMap<>(BETA);
-            generic.put("description", "Requisitos:\n- Java com Spring Boot\n- Mensageria com Kafka");
+        void findsTermOnlyInFinalClient() throws IOException {
             register(ACME);
-            register(generic);
+            register(BETA);
 
-            assertThat(searchAndGet(Map.of("term", "kafka"))).containsExactly(generic);
+            assertThat(searchAndGet(Map.of("term", "delta"))).containsExactly(BETA);
         }
 
         @Test
@@ -416,6 +415,16 @@ class JobApplicationToolsIT {
             register(BETA);
 
             assertThat(searchAndGet(Map.of("term", "desenvolvedora"))).containsExactly(BETA);
+        }
+
+        @Test
+        void findsApplicationByTechnologyThatIsOnlyInTheDescription() throws IOException {
+            var generic = new HashMap<>(BETA);
+            generic.put("description", "Requisitos:\n- Java com Spring Boot\n- Mensageria com Kafka");
+            register(ACME);
+            register(generic);
+
+            assertThat(searchAndGet(Map.of("term", "kafka"))).containsExactly(generic);
         }
 
         @Test
@@ -431,11 +440,10 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void findsAllApplicationsMostRecentFirstWhenThereIsNoTerm() throws IOException {
+        void findsNothingWhenNoApplicationMatches() throws IOException {
             register(ACME);
-            register(BETA);
 
-            assertThat(searchAndGet(Map.of())).containsExactly(BETA, ACME);
+            assertThat(searchAndGet(Map.of("term", "unknown"))).isEmpty();
         }
 
         @Test
@@ -452,6 +460,17 @@ class JobApplicationToolsIT {
             expected.put("id", found.getFirst().get("id"));
             assertThat(found).containsExactly(expected);
             UUID.fromString((String) found.getFirst().get("id"));
+        }
+
+        @Test
+        void searchSummaryIncludesPostingFieldsButNotSalary() throws IOException {
+            register(BETA);
+
+            assertThat(search(Map.of("term", "beta")).getFirst())
+                    .containsEntry("finalClient", "Loja Delta")
+                    .containsEntry("seniority", "Sênior")
+                    .containsEntry("contractType", "PJ")
+                    .doesNotContainKey("salaryRange");
         }
 
         @Test
@@ -475,25 +494,6 @@ class JobApplicationToolsIT {
                     .containsEntry("situation", "ACTIVE")
                     .doesNotContainKeys("steps", "description");
         }
-
-        @Test
-        void findsTermOnlyInFinalClient() throws IOException {
-            register(ACME);
-            register(BETA);
-
-            assertThat(searchAndGet(Map.of("term", "delta"))).containsExactly(BETA);
-        }
-
-        @Test
-        void searchSummaryIncludesPostingFieldsButNotSalary() throws IOException {
-            register(BETA);
-
-            assertThat(search(Map.of("term", "beta")).getFirst())
-                    .containsEntry("finalClient", "Loja Delta")
-                    .containsEntry("seniority", "Sênior")
-                    .containsEntry("contractType", "PJ")
-                    .doesNotContainKey("salaryRange");
-        }
     }
 
     @Nested
@@ -508,21 +508,6 @@ class JobApplicationToolsIT {
             var expected = new HashMap<>(BETA);
             expected.put("id", id);
             assertThat(get(id)).isEqualTo(expected);
-        }
-
-        @Test
-        void getReportsUnknownBlankAndMissingId() {
-            register(ACME);
-
-            var unknown = call(GET, Map.of("id", "unknown"));
-            assertThat(unknown.isError()).isTrue();
-            assertThat(text(unknown).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
-
-            var blank = call(GET, Map.of("id", " "));
-            assertThat(blank.isError()).isTrue();
-            assertThat(text(blank).lines().distinct()).containsExactly("Campo obrigatório: id");
-
-            assertThat(call(GET, Map.of()).isError()).isTrue();
         }
 
         @Test
@@ -541,6 +526,21 @@ class JobApplicationToolsIT {
                     .containsOnlyKeys("platform", "appliedOn", "status", "statusUpdatedOn", "situation", "steps")
                     .containsEntry("platform", "WhatsApp")
                     .containsEntry("appliedOn", "2026-11-20");
+        }
+
+        @Test
+        void getReportsUnknownBlankAndMissingId() {
+            register(ACME);
+
+            var unknown = call(GET, Map.of("id", "unknown"));
+            assertThat(unknown.isError()).isTrue();
+            assertThat(text(unknown).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
+
+            var blank = call(GET, Map.of("id", " "));
+            assertThat(blank.isError()).isTrue();
+            assertThat(text(blank).lines().distinct()).containsExactly("Campo obrigatório: id");
+
+            assertThat(call(GET, Map.of()).isError()).isTrue();
         }
     }
 
@@ -592,15 +592,17 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void rejectsFutureDateOnUpdate() throws IOException {
-            register(ACME);
+        void updatesAndRemovesPostingFields() throws IOException {
+            register(BETA);
 
-            var result = call(UPDATE, Map.of("id", idOf("acme"), "appliedOn", "2999-01-01"));
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "seniority", "Especialista", "finalClient", "",
+                    "salaryRange", "")).isError()).isFalse();
 
-            assertThat(result.isError()).isTrue();
-            assertThat(text(result).lines().distinct())
-                    .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
-            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
+            var expected = new HashMap<String, Object>(BETA);
+            expected.put("seniority", "Especialista");
+            expected.put("finalClient", null);
+            expected.put("salaryRange", null);
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
         @Test
@@ -615,25 +617,17 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void reportsUnknownIdAndChangesNothing() throws IOException {
-            register(ACME);
+        void changesDescriptionTogetherWithRequirements() throws IOException {
+            register(BETA);
+            var kafka = List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"));
 
-            var result = call(UPDATE, Map.of("id", "unknown", "jobTitle", "Analyst"));
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "description", "Mensageria com Kafka",
+                    "requirements", kafka)).isError()).isFalse();
 
-            assertThat(result.isError()).isTrue();
-            assertThat(text(result).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
-            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
-        }
-
-        @Test
-        void rejectsUpdateWithoutChanges() throws IOException {
-            register(ACME);
-
-            var result = call(UPDATE, Map.of("id", idOf("acme")));
-
-            assertThat(result.isError()).isTrue();
-            assertThat(text(result).lines().distinct()).containsExactly("Informe ao menos um campo para alterar");
-            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
+            var expected = new HashMap<>(BETA);
+            expected.put("description", "Mensageria com Kafka");
+            expected.put("requirements", kafka);
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
         @Test
@@ -671,6 +665,18 @@ class JobApplicationToolsIT {
         }
 
         @Test
+        void movingTheApplicationDateMovesAnUnchangedStatusDate() throws IOException {
+            register(ACME);
+
+            assertThat(call(UPDATE, Map.of("id", idOf("acme"), "appliedOn", "2026-11-17")).isError()).isFalse();
+
+            var expected = new HashMap<>(ACME);
+            expected.put("appliedOn", "2026-11-17");
+            expected.put("statusUpdatedOn", "2026-11-17");
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
         void changingStatusMovesStatusDateToTodayInBrazil() throws IOException {
             register(ACME);
             var zone = ZoneId.of("America/Sao_Paulo");
@@ -682,6 +688,31 @@ class JobApplicationToolsIT {
             var stored = searchAndGet(Map.of()).getFirst();
             assertThat(stored).containsEntry("status", "Fit cultural marcado");
             // Duas datas só se o teste atravessar a meia-noite
+            assertThat(stored.get("statusUpdatedOn")).isIn(before, after);
+        }
+
+        @Test
+        void resendingTheSameStatusKeepsTheStatusDate() throws IOException {
+            register(BETA);
+
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", BETA.get("status"), "situation", "ACTIVE"))
+                    .isError()).isFalse();
+
+            assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+        }
+
+        @Test
+        void changesSituationTogetherWithStatus() throws IOException {
+            register(BETA);
+            var zone = ZoneId.of("America/Sao_Paulo");
+            var before = LocalDate.now(zone).toString();
+
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", "Desisti", "situation", "WITHDRAWN")).isError())
+                    .isFalse();
+
+            var after = LocalDate.now(zone).toString();
+            var stored = searchAndGet(Map.of()).getFirst();
+            assertThat(stored).containsEntry("status", "Desisti").containsEntry("situation", "WITHDRAWN");
             assertThat(stored.get("statusUpdatedOn")).isIn(before, after);
         }
 
@@ -711,33 +742,25 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void rejectsStatusDateOrSituationWithoutStatusAndChangesNothing() throws IOException {
-            register(BETA);
-            var id = idOf("beta");
+        void reportsUnknownIdAndChangesNothing() throws IOException {
+            register(ACME);
 
-            var dateOnly = call(UPDATE, Map.of("id", id, "statusUpdatedOn", "2026-11-25"));
-            var situationOnly = call(UPDATE, Map.of("id", id, "situation", "REJECTED"));
+            var result = call(UPDATE, Map.of("id", "unknown", "jobTitle", "Analyst"));
 
-            assertThat(text(dateOnly).lines().distinct())
-                    .containsExactly("Para informar a data do status, envie também o status");
-            assertThat(text(situationOnly).lines().distinct())
-                    .containsExactly("Para informar a situação, envie também o status");
-            assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
+            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
         }
 
         @Test
-        void changesSituationTogetherWithStatus() throws IOException {
-            register(BETA);
-            var zone = ZoneId.of("America/Sao_Paulo");
-            var before = LocalDate.now(zone).toString();
+        void rejectsUpdateWithoutChanges() throws IOException {
+            register(ACME);
 
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", "Desisti", "situation", "WITHDRAWN")).isError())
-                    .isFalse();
+            var result = call(UPDATE, Map.of("id", idOf("acme")));
 
-            var after = LocalDate.now(zone).toString();
-            var stored = searchAndGet(Map.of()).getFirst();
-            assertThat(stored).containsEntry("status", "Desisti").containsEntry("situation", "WITHDRAWN");
-            assertThat(stored.get("statusUpdatedOn")).isIn(before, after);
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result).lines().distinct()).containsExactly("Informe ao menos um campo para alterar");
+            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
         }
 
         @Test
@@ -752,53 +775,30 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void changesDescriptionTogetherWithRequirements() throws IOException {
-            register(BETA);
-            var kafka = List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"));
-
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "description", "Mensageria com Kafka",
-                    "requirements", kafka)).isError()).isFalse();
-
-            var expected = new HashMap<>(BETA);
-            expected.put("description", "Mensageria com Kafka");
-            expected.put("requirements", kafka);
-            assertThat(searchAndGet(Map.of())).containsExactly(expected);
-        }
-
-        @Test
-        void resendingTheSameStatusKeepsTheStatusDate() throws IOException {
-            register(BETA);
-
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", BETA.get("status"), "situation", "ACTIVE"))
-                    .isError()).isFalse();
-
-            assertThat(searchAndGet(Map.of())).containsExactly(BETA);
-        }
-
-        @Test
-        void movingTheApplicationDateMovesAnUnchangedStatusDate() throws IOException {
+        void rejectsFutureDateOnUpdate() throws IOException {
             register(ACME);
 
-            assertThat(call(UPDATE, Map.of("id", idOf("acme"), "appliedOn", "2026-11-17")).isError()).isFalse();
+            var result = call(UPDATE, Map.of("id", idOf("acme"), "appliedOn", "2999-01-01"));
 
-            var expected = new HashMap<>(ACME);
-            expected.put("appliedOn", "2026-11-17");
-            expected.put("statusUpdatedOn", "2026-11-17");
-            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+            assertThat(result.isError()).isTrue();
+            assertThat(text(result).lines().distinct())
+                    .containsExactly("A data da candidatura não pode ser futura: 2999-01-01");
+            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
         }
 
         @Test
-        void updatesAndRemovesPostingFields() throws IOException {
+        void rejectsStatusDateOrSituationWithoutStatusAndChangesNothing() throws IOException {
             register(BETA);
+            var id = idOf("beta");
 
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "seniority", "Especialista", "finalClient", "",
-                    "salaryRange", "")).isError()).isFalse();
+            var dateOnly = call(UPDATE, Map.of("id", id, "statusUpdatedOn", "2026-11-25"));
+            var situationOnly = call(UPDATE, Map.of("id", id, "situation", "REJECTED"));
 
-            var expected = new HashMap<String, Object>(BETA);
-            expected.put("seniority", "Especialista");
-            expected.put("finalClient", null);
-            expected.put("salaryRange", null);
-            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+            assertThat(text(dateOnly).lines().distinct())
+                    .containsExactly("Para informar a data do status, envie também o status");
+            assertThat(text(situationOnly).lines().distinct())
+                    .containsExactly("Para informar a situação, envie também o status");
+            assertThat(searchAndGet(Map.of())).containsExactly(BETA);
         }
     }
 

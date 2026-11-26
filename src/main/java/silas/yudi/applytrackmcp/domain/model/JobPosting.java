@@ -11,13 +11,12 @@ import static silas.yudi.applytrackmcp.domain.model.Fields.required;
  * FinalClient é onde se trabalha de fato, quando a vaga é de consultoria ou alocação.
  */
 public record JobPosting(String company, String finalClient, String jobTitle, String seniority, String contractType,
-                         String salaryRange, String description, String link, List<Requirement> requirements) {
+                         String salaryRange, String link, String description, List<Requirement> requirements) {
 
     public JobPosting {
         company = required("company", company);
-        jobTitle = required("jobTitle", jobTitle);
-        description = required("description", description);
         finalClient = optional(finalClient);
+        jobTitle = required("jobTitle", jobTitle);
         seniority = optional(seniority);
         contractType = optional(contractType);
         salaryRange = optional(salaryRange);
@@ -25,6 +24,7 @@ public record JobPosting(String company, String finalClient, String jobTitle, St
             throw new IllegalArgumentException("Para informar a faixa salarial, informe também o tipo de contrato");
         }
         link = optional(link);
+        description = required("description", description);
         requirements = requirements == null ? List.of() : copyOf(requirements);
     }
 

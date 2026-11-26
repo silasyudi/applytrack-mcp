@@ -34,10 +34,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DynamoDbJobApplicationRepositoryIT {
 
     private final JobApplication acme = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Acme description", "https://acme.com/jobs/1", List.of()),
+                new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
+                        "Acme description", List.of()),
                 ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
     private final JobApplication beta = new JobApplication(
-                new JobPosting("Soluções Beta", null, "Pessoa Desenvolvedora Sênior", null, null, null, "Descrição com\nduas linhas e 🚀", null, List.of()),
+                new JobPosting("Soluções Beta", null, "Pessoa Desenvolvedora Sênior", null, null, null, null,
+                        "Descrição com\nduas linhas e 🚀", List.of()),
                 ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
 
     private DynamoDbClient client;
@@ -75,21 +77,48 @@ class DynamoDbJobApplicationRepositoryIT {
         }
 
         @Test
+        void savesAndReadsPostingFields() {
+            var application = new JobApplication(
+                    new JobPosting("Acme", "Banco Alfa", "Java Developer", "Sênior", "PJ", "R$ 15.000 a R$ 18.000",
+                            null, "Description", List.of()),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            repository.save(application);
+
+            assertThat(repository.findById(application.id())).contains(application);
+        }
+
+        @Test
+        void savesAndReadsRequirementsInOrderWithEveryImportanceAndMissingLevel() {
+            var withRequirements = new JobApplication(
+                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of(
+                            new Requirement("Java", "Avançado", Importance.REQUIRED),
+                            new Requirement("Inglês", "C1", Importance.DESIRABLE),
+                            new Requirement("Node.js", null, Importance.UNSPECIFIED))),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            repository.save(withRequirements);
+
+            assertThat(repository.findById(withRequirements.id())).contains(withRequirements);
+        }
+
+        @Test
+        void savesAndReadsTheWholeProcess() {
+            var application = new JobApplication(
+                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
+                    new ApplicationProcess("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica realizada, aguardando feedback",
+                            LocalDate.of(2026, 11, 24), Situation.OFFER, List.of(
+                                    new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
+                                    new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Kafka"),
+                                    new ProcessStep("Entrevista com líder", null, false, null))));
+            repository.save(application);
+
+            assertThat(repository.findById(application.id())).contains(application);
+        }
+
+        @Test
         void keepsAccentsLineBreaksEmojiAndMissingLink() {
             repository.save(beta);
 
             assertThat(repository.findAll()).containsExactly(beta);
-        }
-
-        @Test
-        void doesNotOverwriteAnEqualApplicationWithAnotherId() {
-            var sameData = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, "Acme description", "https://acme.com/jobs/1", List.of()),
-                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
-            repository.save(acme);
-            repository.save(sameData);
-
-            assertThat(repository.findAll()).containsExactlyInAnyOrder(acme, sameData);
         }
 
         @Test
@@ -103,53 +132,27 @@ class DynamoDbJobApplicationRepositoryIT {
         }
 
         @Test
+        void doesNotOverwriteAnEqualApplicationWithAnotherId() {
+            var sameData = new JobApplication(
+                    new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
+                            "Acme description", List.of()),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            repository.save(acme);
+            repository.save(sameData);
+
+            assertThat(repository.findAll()).containsExactlyInAnyOrder(acme, sameData);
+        }
+
+        @Test
         void replacesApplicationWithTheSameIdAndRemovesTheLink() {
             var changed = new JobApplication(acme.id(),
-                    new JobPosting("Acme", null, "Analyst", null, null, null, "New description", null, List.of()),
+                    new JobPosting("Acme", null, "Analyst", null, null, null, null, "New description", List.of()),
                     ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 21)));
             repository.save(acme);
             repository.save(beta);
             repository.save(changed);
 
             assertThat(repository.findAll()).containsExactlyInAnyOrder(changed, beta);
-        }
-
-        @Test
-        void savesAndReadsRequirementsInOrderWithEveryImportanceAndMissingLevel() {
-            var withRequirements = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of(
-                            new Requirement("Java", "Avançado", Importance.REQUIRED),
-                            new Requirement("Inglês", "C1", Importance.DESIRABLE),
-                            new Requirement("Node.js", null, Importance.UNSPECIFIED))),
-                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
-            repository.save(withRequirements);
-
-            assertThat(repository.findById(withRequirements.id())).contains(withRequirements);
-        }
-
-        @Test
-        void savesAndReadsTheWholeProcess() {
-            var application = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
-                    new ApplicationProcess("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica realizada, aguardando feedback",
-                            LocalDate.of(2026, 11, 24), Situation.OFFER, List.of(
-                                    new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
-                                    new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Kafka"),
-                                    new ProcessStep("Entrevista com líder", null, false, null))));
-            repository.save(application);
-
-            assertThat(repository.findById(application.id())).contains(application);
-        }
-
-        @Test
-        void savesAndReadsPostingFields() {
-            var application = new JobApplication(
-                    new JobPosting("Acme", "Banco Alfa", "Java Developer", "Sênior", "PJ", "R$ 15.000 a R$ 18.000",
-                            "Description", null, List.of()),
-                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
-            repository.save(application);
-
-            assertThat(repository.findById(application.id())).contains(application);
         }
     }
 
@@ -174,7 +177,8 @@ class DynamoDbJobApplicationRepositoryIT {
         void readsMoreThanOnePage() {
             var large = IntStream.range(0, 5)
                     .mapToObj(i -> new JobApplication(
-                    new JobPosting("Company " + i, null, "Java Developer", null, null, null, "x".repeat(300_000), null, List.of()),
+                    new JobPosting("Company " + i, null, "Java Developer", null, null, null, null,
+                            "x".repeat(300_000), List.of()),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))))
                     .toList();
             large.forEach(repository::save);
@@ -200,7 +204,7 @@ class DynamoDbJobApplicationRepositoryIT {
                             "situation", AttributeValue.fromS("ACTIVE"))))));
 
             assertThat(repository.findAll()).containsExactly(new JobApplication("1",
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
+                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))));
         }
     }

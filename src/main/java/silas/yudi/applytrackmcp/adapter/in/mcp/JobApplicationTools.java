@@ -31,22 +31,22 @@ public class JobApplicationTools {
                     + "Não invente dados: se faltar algum campo obrigatório, pergunte ao usuário.")
     public String registerJobApplication(
             @McpToolParam(description = "Nome da empresa") String company,
+            @McpToolParam(description = "Empresa onde se trabalha de fato, quando a vaga é de consultoria ou alocação. Omita se a vaga não citar", required = false) String finalClient,
             @McpToolParam(description = "Nome do cargo, como no anúncio") String jobTitle,
-            @McpToolParam(description = "Descrição completa da vaga, sem resumir") String description,
-            @McpToolParam(description = "Por onde se candidatou: Gupy, LinkedIn, e-mail, WhatsApp etc.") String platform,
+            @McpToolParam(description = "Senioridade como está na vaga: Júnior, Pleno, Sênior, Especialista. Omita se a vaga não citar", required = false) String seniority,
+            @McpToolParam(description = "Tipo de contrato como está na vaga: CLT, PJ, Cooperado. Obrigatório quando houver faixa salarial", required = false) String contractType,
+            @McpToolParam(description = "Faixa salarial anunciada, como está no texto (ex.: R$ 10.000 a R$ 12.000). Omita se a vaga não citar", required = false) String salaryRange,
             @McpToolParam(description = "Link da vaga, se houver", required = false) String link,
-            @McpToolParam(description = "Data em que o usuário se candidatou, no formato AAAA-MM-DD. Se ele não disse quando, pergunte") String appliedOn,
+            @McpToolParam(description = "Descrição completa da vaga, sem resumir") String description,
             @McpToolParam(description = "Requisitos citados na descrição da vaga: tecnologias, idiomas, certificações. Extraia só o que está escrito, sem inventar", required = false) List<RequirementInput> requirements,
+            @McpToolParam(description = "Por onde se candidatou: Gupy, LinkedIn, e-mail, WhatsApp etc.") String platform,
+            @McpToolParam(description = "Data em que o usuário se candidatou, no formato AAAA-MM-DD. Se ele não disse quando, pergunte") String appliedOn,
             @McpToolParam(description = "Status atual em texto livre, como o usuário descreveria: \"Entrevista técnica realizada, aguardando feedback\". Omita no cadastro inicial: o padrão é \"Candidatura enviada\"", required = false) String status,
             @McpToolParam(description = "Data do status, no formato AAAA-MM-DD. Omita para usar a data da candidatura", required = false) String statusUpdatedOn,
             @McpToolParam(description = "ACTIVE (em andamento), OFFER (proposta), HIRED (contratado), REJECTED (reprovado), WITHDRAWN (desistiu) ou CLOSED (vaga fechada). Omita para ACTIVE", required = false) Situation situation,
-            @McpToolParam(description = "Etapas do processo, em ordem: candidatura, fit cultural, entrevista técnica etc.", required = false) List<ProcessStepInput> steps,
-            @McpToolParam(description = "Empresa onde se trabalha de fato, quando a vaga é de consultoria ou alocação. Omita se a vaga não citar", required = false) String finalClient,
-            @McpToolParam(description = "Senioridade como está na vaga: Júnior, Pleno, Sênior, Especialista. Omita se a vaga não citar", required = false) String seniority,
-            @McpToolParam(description = "Tipo de contrato como está na vaga: CLT, PJ, Cooperado. Obrigatório quando houver faixa salarial", required = false) String contractType,
-            @McpToolParam(description = "Faixa salarial anunciada, como está no texto (ex.: R$ 10.000 a R$ 12.000). Omita se a vaga não citar", required = false) String salaryRange) {
+            @McpToolParam(description = "Etapas do processo, em ordem: candidatura, fit cultural, entrevista técnica etc.", required = false) List<ProcessStepInput> steps) {
         var application = new JobApplication(
-                new JobPosting(company, finalClient, jobTitle, seniority, contractType, salaryRange, description, link,
+                new JobPosting(company, finalClient, jobTitle, seniority, contractType, salaryRange, link, description,
                         toDomain(requirements)),
                 ApplicationProcess.start(platform, DateParam.required("appliedOn", appliedOn), status,
                         DateParam.optional("statusUpdatedOn", statusUpdatedOn), situation, toSteps(steps)));
@@ -82,25 +82,25 @@ public class JobApplicationTools {
     public String updateJobApplication(
             @McpToolParam(description = "Id da candidatura, obtido na busca") String id,
             @McpToolParam(description = "Novo nome da empresa", required = false) String company,
+            @McpToolParam(description = "Novo cliente final; texto vazio remove", required = false) String finalClient,
             @McpToolParam(description = "Novo nome do cargo", required = false) String jobTitle,
-            @McpToolParam(description = "Nova descrição completa da vaga, sem resumir", required = false) String description,
-            @McpToolParam(description = "Nova plataforma", required = false) String platform,
+            @McpToolParam(description = "Nova senioridade; texto vazio remove", required = false) String seniority,
+            @McpToolParam(description = "Novo tipo de contrato; texto vazio remove (não é possível manter faixa salarial sem contrato)", required = false) String contractType,
+            @McpToolParam(description = "Nova faixa salarial; texto vazio remove", required = false) String salaryRange,
             @McpToolParam(description = "Novo link; texto vazio remove o link", required = false) String link,
-            @McpToolParam(description = "Nova data da candidatura, no formato AAAA-MM-DD", required = false) String appliedOn,
+            @McpToolParam(description = "Nova descrição completa da vaga, sem resumir", required = false) String description,
             @McpToolParam(description = "Requisitos citados na descrição da vaga: tecnologias, idiomas, certificações. Extraia só o que está escrito, sem inventar. Se enviada, substitui a lista inteira; lista vazia remove todos", required = false) List<RequirementInput> requirements,
+            @McpToolParam(description = "Nova plataforma", required = false) String platform,
+            @McpToolParam(description = "Nova data da candidatura, no formato AAAA-MM-DD", required = false) String appliedOn,
             @McpToolParam(description = "Status atual em texto livre, como o usuário descreveria: \"Entrevista técnica realizada, aguardando feedback\". Ao mudar o status, a data do status passa a ser hoje, se não for informada", required = false) String status,
             @McpToolParam(description = "Data do status, no formato AAAA-MM-DD. Informe quando a mudança não foi hoje", required = false) String statusUpdatedOn,
             @McpToolParam(description = "ACTIVE (em andamento), OFFER (proposta), HIRED (contratado), REJECTED (reprovado), WITHDRAWN (desistiu) ou CLOSED (vaga fechada). Ao mudar, a data do status passa a ser hoje, se não for informada", required = false) Situation situation,
-            @McpToolParam(description = "Etapas do processo, em ordem: candidatura, fit cultural, entrevista técnica etc. Se enviada, substitui a lista inteira; lista vazia remove todas", required = false) List<ProcessStepInput> steps,
-            @McpToolParam(description = "Novo cliente final; texto vazio remove", required = false) String finalClient,
-            @McpToolParam(description = "Nova senioridade; texto vazio remove", required = false) String seniority,
-            @McpToolParam(description = "Novo tipo de contrato; texto vazio remove (não é possível manter faixa salarial sem contrato)", required = false) String contractType,
-            @McpToolParam(description = "Nova faixa salarial; texto vazio remove", required = false) String salaryRange) {
+            @McpToolParam(description = "Etapas do processo, em ordem: candidatura, fit cultural, entrevista técnica etc. Se enviada, substitui a lista inteira; lista vazia remove todas", required = false) List<ProcessStepInput> steps) {
         var date = DateParam.optional("appliedOn", appliedOn);
         var updated = service.update(
-                id, new JobApplicationChanges(company, finalClient, jobTitle, seniority, contractType, salaryRange,
-                platform, link, date,
+                id, new JobApplicationChanges(company, finalClient, jobTitle, seniority, contractType, salaryRange, link,
                 ContentChange.of(description, toDomain(requirements)),
+                platform, date,
                 StatusChange.of(status, DateParam.optional("statusUpdatedOn", statusUpdatedOn), situation),
                 toSteps(steps)));
         return "Candidatura atualizada: %s - %s".formatted(updated.posting().company(), updated.posting().jobTitle());

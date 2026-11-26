@@ -14,12 +14,6 @@ class ProcessStepTest {
 
     private static final LocalDate APPLIED = LocalDate.of(2026, 11, 20);
 
-    @Test
-    void stepKeepsDataWithoutSurroundingSpaces() {
-        assertThat(new ProcessStep(" Fit cultural ", APPLIED, true, " Conversa leve "))
-                .isEqualTo(new ProcessStep("Fit cultural", APPLIED, true, "Conversa leve"));
-    }
-
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", "   "})
@@ -27,6 +21,12 @@ class ProcessStepTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new ProcessStep(name, APPLIED, false, null))
                 .withMessage("Campo obrigatório: step.name");
+    }
+
+    @Test
+    void stepKeepsDataWithoutSurroundingSpaces() {
+        assertThat(new ProcessStep(" Fit cultural ", APPLIED, true, " Conversa leve "))
+                .isEqualTo(new ProcessStep("Fit cultural", APPLIED, true, "Conversa leve"));
     }
 
     @ParameterizedTest

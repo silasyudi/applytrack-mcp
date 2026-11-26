@@ -41,7 +41,8 @@ class JobApplicationToolsTest {
     private JobApplicationTools tools;
 
     private final JobApplication acme = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Full description", "https://acme.com/jobs/1", List.of()),
+                new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
+                        "Full description", List.of()),
                 ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
 
     @Nested
@@ -49,7 +50,9 @@ class JobApplicationToolsTest {
 
         @Test
         void registersApplicationAndConfirms() {
-            var message = tools.registerJobApplication(acme.posting().company(), acme.posting().jobTitle(), acme.posting().description(), acme.process().platform(), acme.posting().link(), "2026-11-20", null, null, null, null, null, null, null, null, null);
+            var message = tools.registerJobApplication(acme.posting().company(), null, acme.posting().jobTitle(),
+                    null, null, null, acme.posting().link(), acme.posting().description(), null,
+                    acme.process().platform(), "2026-11-20", null, null, null, null);
 
             var registered = ArgumentCaptor.forClass(JobApplication.class);
             verify(service).register(registered.capture());
@@ -58,30 +61,14 @@ class JobApplicationToolsTest {
         }
 
         @Test
-        void doesNotRegisterInvalidApplication() {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.registerJobApplication(" ", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, null, null, null, null, null, null, null, null))
-                    .withMessage("Campo obrigatório: company");
-            verifyNoInteractions(service);
-        }
+        void registersPostingFields() {
+            tools.registerJobApplication("Acme", "Banco Alfa", "Java Developer", "Sênior", "PJ", "R$ 15.000", null,
+                    "Description", null, "Gupy", "2026-11-20", null, null, null, null);
 
-        @ParameterizedTest
-        @NullSource
-        @ValueSource(strings = {"", "   "})
-        void requiresDateAndRegistersNothing(String appliedOn) {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, appliedOn, null, null, null, null, null, null, null, null, null))
-                    .withMessage("Campo obrigatório: appliedOn");
-            verifyNoInteractions(service);
-        }
-
-        @ParameterizedTest
-        @ValueSource(strings = {"20/11/2026", "2026-02-30", "ontem"})
-        void rejectsInvalidDateAndRegistersNothing(String appliedOn) {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, appliedOn, null, null, null, null, null, null, null, null, null))
-                    .withMessage("Data inválida: " + appliedOn + ". Use o formato AAAA-MM-DD");
-            verifyNoInteractions(service);
+            var registered = ArgumentCaptor.forClass(JobApplication.class);
+            verify(service).register(registered.capture());
+            assertThat(registered.getValue().posting()).isEqualTo(new JobPosting("Acme", "Banco Alfa",
+                    "Java Developer", "Sênior", "PJ", "R$ 15.000", null, "Description", List.of()));
         }
 
         @Test
@@ -89,8 +76,10 @@ class JobApplicationToolsTest {
             var requirements = List.of(new Requirement("Java", "Avançado", Importance.REQUIRED),
                     new Requirement("Inglês", "C1", Importance.DESIRABLE));
 
-            tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", List.of(new RequirementInput(" Java ", "Avançado", Importance.REQUIRED),
-                            new RequirementInput("Inglês", "C1", Importance.DESIRABLE)), null, null, null, null, null, null, null, null);
+            tools.registerJobApplication("Acme", null, "Java Developer", null, null, null, null, "Description",
+                    List.of(new RequirementInput(" Java ", "Avançado", Importance.REQUIRED),
+                            new RequirementInput("Inglês", "C1", Importance.DESIRABLE)), "Gupy", "2026-11-20", null,
+                    null, null, null);
 
             var registered = ArgumentCaptor.forClass(JobApplication.class);
             verify(service).register(registered.capture());
@@ -99,7 +88,8 @@ class JobApplicationToolsTest {
 
         @Test
         void registersWithDefaultProcessWhenProcessFieldsAreMissing() {
-            tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, null, null, null, null, null, null, null, null);
+            tools.registerJobApplication("Acme", null, "Java Developer", null, null, null, null, "Description", null,
+                    "Gupy", "2026-11-20", null, null, null, null);
 
             var registered = ArgumentCaptor.forClass(JobApplication.class);
             verify(service).register(registered.capture());
@@ -108,10 +98,12 @@ class JobApplicationToolsTest {
 
         @Test
         void registersProcessFields() {
-            tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, "Entrevista técnica realizada, aguardando feedback", "2026-11-24", Situation.ACTIVE, List.of(
+            tools.registerJobApplication("Acme", null, "Java Developer", null, null, null, null, "Description", null,
+                    "Gupy", "2026-11-20", "Entrevista técnica realizada, aguardando feedback", "2026-11-24",
+                    Situation.ACTIVE, List.of(
                             new ProcessStepInput("Candidatura", "2026-11-20", true, null),
                             new ProcessStepInput("Entrevista técnica", "2026-11-24", true, "Perguntaram sobre Kafka"),
-                            new ProcessStepInput("Entrevista com líder", null, null, null)), null, null, null, null);
+                            new ProcessStepInput("Entrevista com líder", null, null, null)));
 
             var registered = ArgumentCaptor.forClass(JobApplication.class);
             verify(service).register(registered.capture());
@@ -123,32 +115,11 @@ class JobApplicationToolsTest {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"24/11/2026", "2026-02-30"})
-        void rejectsInvalidStatusOrStepDateAndRegistersNothing(String date) {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, null, date, null, null, null, null, null, null))
-                    .withMessage("Data inválida: " + date + ". Use o formato AAAA-MM-DD");
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, null, null, null, List.of(new ProcessStepInput("Técnica", date, null, null)), null, null, null, null))
-                    .withMessage("Data inválida: " + date + ". Use o formato AAAA-MM-DD");
-            verifyNoInteractions(service);
-        }
-
-        @Test
-        void rejectsRegistrationWithStatusDateOrSituationWithoutStatus() {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, null, "2026-11-22", null, null, null, null, null, null))
-                    .withMessage("Para informar a data do status, envie também o status");
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, null, null, Situation.CLOSED, null, null, null, null, null))
-                    .withMessage("Para informar a situação, envie também o status");
-            verifyNoInteractions(service);
-        }
-
-        @ParameterizedTest
         @ValueSource(strings = {"", "   "})
         void treatsBlankStepDateAsNoDate(String blank) {
-            tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null, null, null, null, List.of(new ProcessStepInput("Entrevista técnica", blank, false, null)), null, null, null, null);
+            tools.registerJobApplication("Acme", null, "Java Developer", null, null, null, null, "Description", null,
+                    "Gupy", "2026-11-20", null, null, null,
+                    List.of(new ProcessStepInput("Entrevista técnica", blank, false, null)));
 
             var registered = ArgumentCaptor.forClass(JobApplication.class);
             verify(service).register(registered.capture());
@@ -157,14 +128,61 @@ class JobApplicationToolsTest {
         }
 
         @Test
-        void registersPostingFields() {
-            tools.registerJobApplication("Acme", "Java Developer", "Description", "Gupy", null, "2026-11-20", null,
-                    null, null, null, null, "Banco Alfa", "Sênior", "PJ", "R$ 15.000");
+        void doesNotRegisterInvalidApplication() {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.registerJobApplication(" ", null, "Java Developer", null, null, null,
+                            null, "Description", null, "Gupy", "2026-11-20", null, null, null, null))
+                    .withMessage("Campo obrigatório: company");
+            verifyNoInteractions(service);
+        }
 
-            var registered = ArgumentCaptor.forClass(JobApplication.class);
-            verify(service).register(registered.capture());
-            assertThat(registered.getValue().posting()).isEqualTo(new JobPosting("Acme", "Banco Alfa", "Java Developer",
-                    "Sênior", "PJ", "R$ 15.000", "Description", null, List.of()));
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        void requiresDateAndRegistersNothing(String appliedOn) {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.registerJobApplication("Acme", null, "Java Developer", null, null, null,
+                            null, "Description", null, "Gupy", appliedOn, null, null, null, null))
+                    .withMessage("Campo obrigatório: appliedOn");
+            verifyNoInteractions(service);
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"20/11/2026", "2026-02-30", "ontem"})
+        void rejectsInvalidDateAndRegistersNothing(String appliedOn) {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.registerJobApplication("Acme", null, "Java Developer", null, null, null,
+                            null, "Description", null, "Gupy", appliedOn, null, null, null, null))
+                    .withMessage("Data inválida: " + appliedOn + ". Use o formato AAAA-MM-DD");
+            verifyNoInteractions(service);
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"24/11/2026", "2026-02-30"})
+        void rejectsInvalidStatusOrStepDateAndRegistersNothing(String date) {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.registerJobApplication("Acme", null, "Java Developer", null, null, null,
+                            null, "Description", null, "Gupy", "2026-11-20", null, date, null, null))
+                    .withMessage("Data inválida: " + date + ". Use o formato AAAA-MM-DD");
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.registerJobApplication("Acme", null, "Java Developer", null, null, null,
+                            null, "Description", null, "Gupy", "2026-11-20", null, null, null,
+                            List.of(new ProcessStepInput("Técnica", date, null, null))))
+                    .withMessage("Data inválida: " + date + ". Use o formato AAAA-MM-DD");
+            verifyNoInteractions(service);
+        }
+
+        @Test
+        void rejectsRegistrationWithStatusDateOrSituationWithoutStatus() {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.registerJobApplication("Acme", null, "Java Developer", null, null, null,
+                            null, "Description", null, "Gupy", "2026-11-20", null, "2026-11-22", null, null))
+                    .withMessage("Para informar a data do status, envie também o status");
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.registerJobApplication("Acme", null, "Java Developer", null, null, null,
+                            null, "Description", null, "Gupy", "2026-11-20", null, null, Situation.CLOSED, null))
+                    .withMessage("Para informar a situação, envie também o status");
+            verifyNoInteractions(service);
         }
     }
 
@@ -174,36 +192,44 @@ class JobApplicationToolsTest {
         @Test
         void returnsSummaryOfAllApplicationsFound() {
             var acmeLabs = new JobApplication(
-                    new JobPosting("Acme Labs", null, "Analyst", null, null, null, "Another description", null, List.of()),
+                    new JobPosting("Acme Labs", null, "Analyst", null, null, null, null, "Another description",
+                            List.of()),
                     ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
             when(service.search("acme")).thenReturn(List.of(acme, acmeLabs));
 
             assertThat(tools.searchJobApplications("acme")).containsExactly(
-                    new JobApplicationSummary(acme.id(), "Acme", null, "Java Developer", null, null, "Gupy", "https://acme.com/jobs/1", LocalDate.of(2026, 11, 20), List.of(), "Candidatura enviada", LocalDate.of(2026, 11, 20), Situation.ACTIVE),
-                    new JobApplicationSummary(acmeLabs.id(), "Acme Labs", null, "Analyst", null, null, "WhatsApp", null, LocalDate.of(2026, 11, 20), List.of(), "Candidatura enviada", LocalDate.of(2026, 11, 20), Situation.ACTIVE));
+                    new JobApplicationSummary(acme.id(), "Acme", null, "Java Developer", null, null,
+                            "https://acme.com/jobs/1", List.of(), "Gupy", LocalDate.of(2026, 11, 20),
+                            "Candidatura enviada", LocalDate.of(2026, 11, 20), Situation.ACTIVE),
+                    new JobApplicationSummary(acmeLabs.id(), "Acme Labs", null, "Analyst", null, null, null,
+                            List.of(), "WhatsApp", LocalDate.of(2026, 11, 20), "Candidatura enviada",
+                            LocalDate.of(2026, 11, 20), Situation.ACTIVE));
+        }
+
+        @Test
+        void summaryIncludesFinalClientSeniorityAndContractButNotSalary() {
+            var posted = new JobApplication(acme.id(), new JobPosting("Acme", "Banco Alfa", "Java Developer",
+                    "Sênior", "PJ", "R$ 15.000", null, "Full description", List.of()),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            when(service.search("acme")).thenReturn(List.of(posted));
+
+            assertThat(tools.searchJobApplications("acme")).containsExactly(new JobApplicationSummary(acme.id(),
+                    "Acme", "Banco Alfa", "Java Developer", "Sênior", "PJ", null, List.of(), "Gupy",
+                    LocalDate.of(2026, 11, 20), "Candidatura enviada", LocalDate.of(2026, 11, 20), Situation.ACTIVE));
         }
 
         @Test
         void summaryIncludesRequirements() {
             var requirements = List.of(new Requirement("Java", "Avançado", Importance.REQUIRED));
             var withRequirements = new JobApplication(acme.id(),
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, "Full description", null, requirements),
+                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Full description",
+                            requirements),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(service.search("acme")).thenReturn(List.of(withRequirements));
 
-            assertThat(tools.searchJobApplications("acme")).containsExactly(new JobApplicationSummary(acme.id(), "Acme", null, "Java Developer", null, null, "Gupy", null, LocalDate.of(2026, 11, 20), requirements, "Candidatura enviada", LocalDate.of(2026, 11, 20), Situation.ACTIVE));
-        }
-
-        @Test
-        void summaryIncludesFinalClientSeniorityAndContractButNotSalary() {
-            var posted = new JobApplication(acme.id(), new JobPosting("Acme", "Banco Alfa", "Java Developer", "Sênior",
-                    "PJ", "R$ 15.000", "Full description", null, List.of()),
-                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
-            when(service.search("acme")).thenReturn(List.of(posted));
-
-            assertThat(tools.searchJobApplications("acme")).containsExactly(new JobApplicationSummary(acme.id(), "Acme",
-                    "Banco Alfa", "Java Developer", "Sênior", "PJ", "Gupy", null, LocalDate.of(2026, 11, 20), List.of(),
-                    "Candidatura enviada", LocalDate.of(2026, 11, 20), Situation.ACTIVE));
+            assertThat(tools.searchJobApplications("acme")).containsExactly(new JobApplicationSummary(acme.id(),
+                    "Acme", null, "Java Developer", null, null, null, requirements, "Gupy",
+                    LocalDate.of(2026, 11, 20), "Candidatura enviada", LocalDate.of(2026, 11, 20), Situation.ACTIVE));
         }
     }
 
@@ -224,26 +250,78 @@ class JobApplicationToolsTest {
         @Test
         void updatesApplicationAndConfirms() {
             var updated = new JobApplication(acme.id(),
-                    new JobPosting("Beta", null, "Analyst", null, null, null, "New description", "https://beta.com", List.of()),
+                    new JobPosting("Beta", null, "Analyst", null, null, null, "https://beta.com", "New description",
+                            List.of()),
                     ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 21)));
-            when(service.update("id-1", new JobApplicationChanges("Beta", null, "Analyst", null, null, null, "WhatsApp", "https://beta.com", LocalDate.of(2026, 11, 21), new ContentChange("New description", List.of()), null, null))).thenReturn(updated);
+            when(service.update("id-1", new JobApplicationChanges("Beta", null, "Analyst", null, null, null,
+                    "https://beta.com", new ContentChange("New description", List.of()), "WhatsApp",
+                    LocalDate.of(2026, 11, 21), null, null))).thenReturn(updated);
 
-            assertThat(tools.updateJobApplication("id-1", "Beta", "Analyst", "New description", "WhatsApp", "https://beta.com", "2026-11-21", List.of(), null, null, null, null, null, null, null, null))
+            assertThat(tools.updateJobApplication("id-1", "Beta", null, "Analyst", null, null, null,
+                    "https://beta.com", "New description", List.of(), "WhatsApp", "2026-11-21", null, null, null, null))
                     .isEqualTo("Candidatura atualizada: Beta - Analyst");
         }
 
         @Test
         void sendsOnlyTheGivenFields() {
-            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, "Gupy", "", null, null, null, null))).thenReturn(acme);
+            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, "", null,
+                    "Gupy", null, null, null))).thenReturn(acme);
 
-            assertThat(tools.updateJobApplication("id-1", null, null, null, "Gupy", "", null, null, null, null, null, null, null, null, null, null))
+            assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, "", null, null, "Gupy",
+                    null, null, null, null, null))
                     .isEqualTo("Candidatura atualizada: Acme - Java Developer");
+        }
+
+        @Test
+        void sendsPostingFieldsToUpdate() {
+            when(service.update("id-1", new JobApplicationChanges(null, "Banco Alfa", null, "Sênior", "PJ", "",
+                    null, null, null, null, null, null))).thenReturn(acme);
+
+            assertThat(tools.updateJobApplication("id-1", null, "Banco Alfa", null, "Sênior", "PJ", "", null, null,
+                    null, null, null, null, null, null, null)).isEqualTo("Candidatura atualizada: Acme - Java Developer");
+        }
+
+        @Test
+        void sendsRequirementsToUpdate() {
+            var requirements = List.of(new Requirement("Kafka", null, Importance.DESIRABLE));
+            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, null,
+                    new ContentChange(null, requirements), null, null, null, null)))
+                    .thenReturn(acme);
+
+            assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null,
+                    List.of(new RequirementInput("Kafka", " ", Importance.DESIRABLE)), null, null, null, null, null,
+                    null))
+                    .isEqualTo("Candidatura atualizada: Acme - Java Developer");
+        }
+
+        @Test
+        void sendsProcessFieldsToUpdate() {
+            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, null, null,
+                    null, null,
+                    new StatusChange("Reprovado na técnica", LocalDate.of(2026, 11, 24), Situation.REJECTED),
+                    List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 23), true, null)))))
+                    .thenReturn(acme);
+
+            assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null, null, null,
+                    null, "Reprovado na técnica", "2026-11-24", Situation.REJECTED,
+                    List.of(new ProcessStepInput("Entrevista técnica", "2026-11-23", true, null))))
+                    .isEqualTo("Candidatura atualizada: Acme - Java Developer");
+        }
+
+        @Test
+        void rejectsUpdateOfDescriptionWithoutRequirements() {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null,
+                            "Nova descrição", null, null, null, null, null, null, null))
+                    .withMessage("Para informar a descrição, envie também os requisitos (lista vazia se a vaga não citar nenhum)");
+            verifyNoInteractions(service);
         }
 
         @Test
         void rejectsInvalidDateAndUpdatesNothing() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, "20/11/2026", null, null, null, null, null, null, null, null, null))
+                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null,
+                            null, null, null, "20/11/2026", null, null, null, null))
                     .withMessage("Data inválida: 20/11/2026. Use o formato AAAA-MM-DD");
             verifyNoInteractions(service);
         }
@@ -253,46 +331,9 @@ class JobApplicationToolsTest {
         @ValueSource(strings = {"", "   "})
         void rejectsBlankDateAndUpdatesNothing(String appliedOn) {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.updateJobApplication("id-1", "Beta", null, null, null, null, appliedOn, null, null, null, null, null, null, null, null, null))
+                    .isThrownBy(() -> tools.updateJobApplication("id-1", "Beta", null, null, null, null, null, null,
+                            null, null, null, appliedOn, null, null, null, null))
                     .withMessage("Campo obrigatório: appliedOn");
-            verifyNoInteractions(service);
-        }
-
-        @Test
-        void sendsRequirementsToUpdate() {
-            var requirements = List.of(new Requirement("Kafka", null, Importance.DESIRABLE));
-            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, null, null, null, new ContentChange(null, requirements), null, null)))
-                    .thenReturn(acme);
-
-            assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, List.of(new RequirementInput("Kafka", " ", Importance.DESIRABLE)), null, null, null, null, null, null, null, null))
-                    .isEqualTo("Candidatura atualizada: Acme - Java Developer");
-        }
-
-        @Test
-        void sendsProcessFieldsToUpdate() {
-            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, null, null, null, null, new StatusChange("Reprovado na técnica", LocalDate.of(2026, 11, 24), Situation.REJECTED), List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 23), true, null)))))
-                    .thenReturn(acme);
-
-            assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, "Reprovado na técnica", "2026-11-24", Situation.REJECTED, List.of(new ProcessStepInput("Entrevista técnica", "2026-11-23", true, null)), null, null, null, null))
-                    .isEqualTo("Candidatura atualizada: Acme - Java Developer");
-        }
-
-        @Test
-        void rejectsUpdateOfStatusDateOrSituationWithoutStatus() {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null, "2026-11-24", null, null, null, null, null, null))
-                    .withMessage("Para informar a data do status, envie também o status");
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null, null, Situation.REJECTED, null, null, null, null, null))
-                    .withMessage("Para informar a situação, envie também o status");
-            verifyNoInteractions(service);
-        }
-
-        @Test
-        void rejectsUpdateOfDescriptionWithoutRequirements() {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, "Nova descrição", null, null, null, null, null, null, null, null, null, null, null, null))
-                    .withMessage("Para informar a descrição, envie também os requisitos (lista vazia se a vaga não citar nenhum)");
             verifyNoInteractions(service);
         }
 
@@ -300,21 +341,27 @@ class JobApplicationToolsTest {
         @ValueSource(strings = {"", "   "})
         void rejectsBlankStatusOrStatusDateOnUpdate(String blank) {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null, blank, null, null, null, null, null, null, null))
+                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null,
+                            null, null, null, null, blank, null, null, null))
                     .withMessage("Campo obrigatório: status");
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null, "Entrevista", blank, null, null, null, null, null, null))
+                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null,
+                            null, null, null, null, "Entrevista", blank, null, null))
                     .withMessage("Campo obrigatório: statusUpdatedOn");
             verifyNoInteractions(service);
         }
 
         @Test
-        void sendsPostingFieldsToUpdate() {
-            when(service.update("id-1", new JobApplicationChanges(null, "Banco Alfa", null, "Sênior", "PJ", "",
-                    null, null, null, null, null, null))).thenReturn(acme);
-
-            assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null, null, null, null,
-                    "Banco Alfa", "Sênior", "PJ", "")).isEqualTo("Candidatura atualizada: Acme - Java Developer");
+        void rejectsUpdateOfStatusDateOrSituationWithoutStatus() {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null,
+                            null, null, null, null, null, "2026-11-24", null, null))
+                    .withMessage("Para informar a data do status, envie também o status");
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> tools.updateJobApplication("id-1", null, null, null, null, null, null, null,
+                            null, null, null, null, null, null, Situation.REJECTED, null))
+                    .withMessage("Para informar a situação, envie também o status");
+            verifyNoInteractions(service);
         }
     }
 

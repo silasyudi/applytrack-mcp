@@ -20,6 +20,27 @@ class ApplicationProcessTest {
     private static final ProcessStep INTERVIEW = new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true,
             "Perguntaram sobre Kafka");
 
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void requiresPlatform(String platform) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new JobApplication(
+                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
+                ApplicationProcess.start(platform, LocalDate.of(2026, 11, 20))))
+                .withMessage("Campo obrigatório: platform");
+    }
+
+    // Sem data não dá para calcular prazos
+    @Test
+    void requiresAppliedOn() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new JobApplication(
+                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
+                ApplicationProcess.start("LinkedIn", null)))
+                .withMessage("Campo obrigatório: appliedOn");
+    }
+
     @Test
     void startUsesDefaultsForMissingValues() {
         assertThat(ApplicationProcess.start("Gupy", APPLIED, null, null, null, null)).isEqualTo(
@@ -43,17 +64,6 @@ class ApplicationProcessTest {
                 List.of(APPLICATION, INTERVIEW)));
     }
 
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresStatus(String status) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new ApplicationProcess("Gupy", APPLIED, status, APPLIED, Situation.ACTIVE, List.of()))
-                .withMessage("Campo obrigatório: status");
-    }
-
-    // ---------- pares no cadastro
-
     @Test
     void startRejectsStatusDateWithoutStatus() {
         assertThatIllegalArgumentException()
@@ -68,23 +78,13 @@ class ApplicationProcessTest {
                 .withMessage("Para informar a situação, envie também o status");
     }
 
-    // ---------- etapas e data da candidatura
-
-    @Test
-    void rejectsStepBeforeApplication() {
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void requiresStatus(String status) {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new ApplicationProcess("Gupy", APPLIED, "Enviada", APPLIED, Situation.ACTIVE,
-                        List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 19), true, null))))
-                .withMessage("A etapa não pode ser anterior à candidatura: Entrevista técnica (2026-11-19)");
-    }
-
-    @Test
-    void acceptsStepOnTheApplicationDayAndStepWithoutDate() {
-        var steps = List.of(new ProcessStep("Candidatura", APPLIED, true, null),
-                new ProcessStep("Entrevista técnica", null, false, null));
-
-        assertThat(new ApplicationProcess("Gupy", APPLIED, "Enviada", APPLIED, Situation.ACTIVE, steps).steps())
-                .isEqualTo(steps);
+                .isThrownBy(() -> new ApplicationProcess("Gupy", APPLIED, status, APPLIED, Situation.ACTIVE, List.of()))
+                .withMessage("Campo obrigatório: status");
     }
 
     @Test
@@ -137,26 +137,20 @@ class ApplicationProcessTest {
                 .withMessage("Campo obrigatório: step");
     }
 
-    // ---------- campos obrigatórios
+    @Test
+    void acceptsStepOnTheApplicationDayAndStepWithoutDate() {
+        var steps = List.of(new ProcessStep("Candidatura", APPLIED, true, null),
+                new ProcessStep("Entrevista técnica", null, false, null));
 
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresPlatform(String platform) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start(platform, LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: platform");
+        assertThat(new ApplicationProcess("Gupy", APPLIED, "Enviada", APPLIED, Situation.ACTIVE, steps).steps())
+                .isEqualTo(steps);
     }
 
-    // Sem data não dá para calcular prazos
     @Test
-    void requiresAppliedOn() {
+    void rejectsStepBeforeApplication() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start("LinkedIn", null)))
-                .withMessage("Campo obrigatório: appliedOn");
+                .isThrownBy(() -> new ApplicationProcess("Gupy", APPLIED, "Enviada", APPLIED, Situation.ACTIVE,
+                        List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 19), true, null))))
+                .withMessage("A etapa não pode ser anterior à candidatura: Entrevista técnica (2026-11-19)");
     }
 }

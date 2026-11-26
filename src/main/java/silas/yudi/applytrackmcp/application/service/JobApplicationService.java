@@ -33,6 +33,18 @@ public class JobApplicationService {
         repository.save(application);
     }
 
+    /** Busca por trecho da empresa, do cliente final, do cargo ou da descrição; sem termo, lista tudo. Mais recentes primeiro. */
+    public List<JobApplication> search(String term) {
+        var normalizedTerm = term == null ? "" : normalize(term);
+        return repository.findAll().stream()
+                .filter(application -> normalize(application.posting().company()).contains(normalizedTerm)
+                        || normalize(application.posting().finalClient()).contains(normalizedTerm)
+                        || normalize(application.posting().jobTitle()).contains(normalizedTerm)
+                        || normalize(application.posting().description()).contains(normalizedTerm))
+                .sorted(MOST_RECENT_FIRST)
+                .toList();
+    }
+
     public JobApplication get(String id) {
         requireId(id);
         return find(id);
@@ -73,6 +85,12 @@ public class JobApplicationService {
         return repository.findById(id).orElseThrow(() -> new JobApplicationNotFoundException(id));
     }
 
+    private void rejectFuture(String what, LocalDate date) {
+        if (date.isAfter(LocalDate.now(clock))) {
+            throw new IllegalArgumentException(what + " não pode ser futura: " + date);
+        }
+    }
+
     private void rejectDoneStepsInTheFuture(List<ProcessStep> steps) {
         var today = LocalDate.now(clock);
         for (var step : steps) {
@@ -81,24 +99,6 @@ public class JobApplicationService {
                         .formatted(step.name(), step.date()));
             }
         }
-    }
-
-    private void rejectFuture(String what, LocalDate date) {
-        if (date.isAfter(LocalDate.now(clock))) {
-            throw new IllegalArgumentException(what + " não pode ser futura: " + date);
-        }
-    }
-
-    /** Busca por trecho da empresa, do cliente final, do cargo ou da descrição; sem termo, lista tudo. Mais recentes primeiro. */
-    public List<JobApplication> search(String term) {
-        var normalizedTerm = term == null ? "" : normalize(term);
-        return repository.findAll().stream()
-                .filter(application -> normalize(application.posting().company()).contains(normalizedTerm)
-                        || normalize(application.posting().finalClient()).contains(normalizedTerm)
-                        || normalize(application.posting().jobTitle()).contains(normalizedTerm)
-                        || normalize(application.posting().description()).contains(normalizedTerm))
-                .sorted(MOST_RECENT_FIRST)
-                .toList();
     }
 
     // Ignora acento, caixa e espaços nas pontas
