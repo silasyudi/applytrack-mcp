@@ -6,6 +6,7 @@ import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
 import silas.yudi.applytrackmcp.domain.model.JobPosting;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
+import silas.yudi.applytrackmcp.domain.model.StepChange;
 
 import java.text.Normalizer;
 import java.time.Clock;
@@ -29,8 +30,7 @@ public class JobApplicationService {
 
     public void register(JobApplication application) {
         rejectFuture("A data da candidatura", application.process().appliedOn());
-        rejectFuture("A data do status", application.process().statusUpdatedOn());
-        rejectDoneStepsInTheFuture(application.process().steps());
+        rejectFutureCompletion(application.process().steps());
         repository.save(application);
     }
 
@@ -58,13 +58,26 @@ public class JobApplicationService {
         if (changes.appliedOn() != null) {
             rejectFuture("A data da candidatura", changes.appliedOn());
         }
-        if (changes.statusChange() != null && changes.statusChange().on() != null) {
-            rejectFuture("A data do status", changes.statusChange().on());
-        }
         if (changes.steps() != null) {
-            rejectDoneStepsInTheFuture(changes.steps());
+            rejectFutureCompletion(changes.steps());
         }
-        var updated = find(id).update(changes, LocalDate.now(clock));
+        var updated = find(id).update(changes);
+        repository.save(updated);
+        return updated;
+    }
+
+    public JobApplication addStep(String id, ProcessStep step) {
+        requireId(id);
+        rejectFutureCompletion(step.name(), step.completedOn());
+        var updated = find(id).addStep(step);
+        repository.save(updated);
+        return updated;
+    }
+
+    public JobApplication updateStep(String id, String stepName, StepChange change) {
+        requireId(id);
+        rejectFutureCompletion(stepName, change.completedOn());
+        var updated = find(id).updateStep(stepName, change);
         repository.save(updated);
         return updated;
     }
@@ -105,14 +118,15 @@ public class JobApplicationService {
         }
     }
 
-    private void rejectDoneStepsInTheFuture(List<ProcessStep> steps) {
-        var today = LocalDate.now(clock);
+    private void rejectFutureCompletion(List<ProcessStep> steps) {
+        steps.forEach(step -> rejectFutureCompletion(step.name(), step.completedOn()));
+    }
 
-        for (var step : steps) {
-            if (step.done() && step.date() != null && step.date().isAfter(today)) {
-                throw new IllegalArgumentException(
-                        "Etapa marcada como feita não pode ter data futura: %s (%s)".formatted(step.name(), step.date()));
-            }
+    // Marcada pode ser futura; concluída não
+    private void rejectFutureCompletion(String stepName, LocalDate completedOn) {
+        if (completedOn != null && completedOn.isAfter(LocalDate.now(clock))) {
+            throw new IllegalArgumentException(
+                    "A etapa não pode ter conclusão futura: %s (%s)".formatted(stepName.strip(), completedOn));
         }
     }
 

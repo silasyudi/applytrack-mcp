@@ -3,6 +3,7 @@ package silas.yudi.applytrackmcp.domain.model;
 import java.util.List;
 import java.util.Objects;
 
+import static silas.yudi.applytrackmcp.domain.model.Fields.changed;
 import static silas.yudi.applytrackmcp.domain.model.Fields.optional;
 import static silas.yudi.applytrackmcp.domain.model.Fields.required;
 
@@ -51,10 +52,6 @@ public record JobPosting(String company,
                 content == null ? description : changed(content.description(), description),
                 content == null ? requirements : content.requirements()
         );
-    }
-
-    private static <T> T changed(T newValue, T currentValue) {
-        return newValue == null ? currentValue : newValue;
     }
 
     private static List<Requirement> copyOf(List<Requirement> requirements) {

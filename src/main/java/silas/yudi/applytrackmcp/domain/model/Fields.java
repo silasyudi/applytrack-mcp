@@ -20,6 +20,11 @@ final class Fields {
         return value.strip();
     }
 
+    /** Valor nulo mantém o atual. */
+    static <T> T changed(T newValue, T currentValue) {
+        return newValue == null ? currentValue : newValue;
+    }
+
     /** Em branco vira nulo. */
     static String optional(String value) {
         return value == null || value.isBlank() ? null : value.strip();

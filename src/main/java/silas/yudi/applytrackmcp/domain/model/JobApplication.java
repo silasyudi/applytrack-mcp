@@ -1,6 +1,5 @@
 package silas.yudi.applytrackmcp.domain.model;
 
-import java.time.LocalDate;
 import java.util.UUID;
 
 import static silas.yudi.applytrackmcp.domain.model.Fields.required;
@@ -25,12 +24,20 @@ public record JobApplication(String id, JobPosting posting, ApplicationProcess p
         this(UUID.randomUUID().toString(), posting, process);
     }
 
-    /** Today é a data da mudança, quando status ou situação mudam sem data informada. */
-    public JobApplication update(JobApplicationChanges changes, LocalDate today) {
+    public JobApplication update(JobApplicationChanges changes) {
         if (changes.isEmpty()) {
             throw new IllegalArgumentException("Informe ao menos um campo para alterar");
         }
 
-        return new JobApplication(id, posting.update(changes), process.update(changes, today));
+        return new JobApplication(id, posting.update(changes), process.update(changes));
+    }
+
+    public JobApplication addStep(ProcessStep step) {
+        return new JobApplication(id, posting, process.addStep(step));
+    }
+
+    /** Localiza a etapa pelo nome, sem diferenciar acentos e maiúsculas. */
+    public JobApplication updateStep(String name, StepChange change) {
+        return new JobApplication(id, posting, process.updateStep(name, change));
     }
 }

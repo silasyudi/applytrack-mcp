@@ -16,14 +16,9 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 
 class JobApplicationTest {
 
-    private static final LocalDate TODAY = LocalDate.of(2026, 11, 25);
-
     private static final Requirement JAVA = new Requirement("Java", "Avançado", Importance.REQUIRED);
     private static final Requirement ENGLISH = new Requirement("Inglês", "C1", Importance.DESIRABLE);
     private static final Requirement NODE = new Requirement("Node.js", null, Importance.UNSPECIFIED);
-
-    private static final ProcessStep STEP_A = new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null);
-    private static final ProcessStep STEP_B = new ProcessStep("Entrevista técnica", null, false, "Aguardando data");
 
     @Nested
     class Creation {
@@ -81,7 +76,7 @@ class JobApplicationTest {
                     .content(new ContentChange("New description", List.of()))
                     .platform("Gupy")
                     .appliedOn(LocalDate.of(2026, 11, 21))
-                    .build(), TODAY);
+                    .build());
 
             assertThat(updated).isEqualTo(new JobApplication(original.id(),
                     aPosting()
@@ -97,7 +92,7 @@ class JobApplicationTest {
         void keepsFieldsThatAreNotInTheChanges() {
             var original = acme();
 
-            assertThat(original.update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY))
+            assertThat(original.update(JobApplicationChanges.builder().jobTitle("Analyst").build()))
                     .isEqualTo(new JobApplication(original.id(),
                             aPosting().jobTitle("Analyst").link("https://acme.com").build(),
                             ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))));
@@ -108,7 +103,7 @@ class JobApplicationTest {
         void blankLinkRemovesTheLink(String link) {
             var original = acme();
 
-            assertThat(original.update(JobApplicationChanges.builder().link(link).build(), TODAY))
+            assertThat(original.update(JobApplicationChanges.builder().link(link).build()))
                     .isEqualTo(new JobApplication(original.id(),
                             aPosting().build(),
                             ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))));
@@ -116,9 +111,9 @@ class JobApplicationTest {
 
         @Test
         void addsALinkToAnApplicationWithoutLink() {
-            var withoutLink = acme().update(JobApplicationChanges.builder().link("").build(), TODAY);
+            var withoutLink = acme().update(JobApplicationChanges.builder().link("").build());
 
-            var updated = withoutLink.update(JobApplicationChanges.builder().link("https://acme.com/2").build(), TODAY);
+            var updated = withoutLink.update(JobApplicationChanges.builder().link("https://acme.com/2").build());
 
             assertThat(updated.posting().link()).isEqualTo("https://acme.com/2");
         }
@@ -126,14 +121,14 @@ class JobApplicationTest {
         @Test
         void updateCannotEraseRequiredField() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> acme().update(JobApplicationChanges.builder().company(" ").build(), TODAY))
+                    .isThrownBy(() -> acme().update(JobApplicationChanges.builder().company(" ").build()))
                     .withMessage("Campo obrigatório: company");
         }
 
         @Test
         void updateRequiresAtLeastOneChange() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> acme().update(JobApplicationChanges.builder().build(), TODAY))
+                    .isThrownBy(() -> acme().update(JobApplicationChanges.builder().build()))
                     .withMessage("Informe ao menos um campo para alterar");
         }
     }
@@ -144,7 +139,7 @@ class JobApplicationTest {
 
         @Test
         void updatesPostingFieldsAndKeepsTheOthers() {
-            var updated = acme().update(postingChange("Banco Alfa", "Sênior", "PJ", "R$ 15.000"), TODAY);
+            var updated = acme().update(postingChange("Banco Alfa", "Sênior", "PJ", "R$ 15.000"));
 
             assertThat(updated.posting()).isEqualTo(aPosting()
                     .finalClient("Banco Alfa")
@@ -158,13 +153,13 @@ class JobApplicationTest {
 
         @Test
         void updatingOnlyOnePostingFieldIsAValidChange() {
-            assertThat(acme().update(postingChange(null, "Pleno", null, null), TODAY).posting().seniority())
+            assertThat(acme().update(postingChange(null, "Pleno", null, null)).posting().seniority())
                     .isEqualTo("Pleno");
         }
 
         @Test
         void omittedPostingFieldsKeepTheirValues() {
-            var updated = contracted().update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY);
+            var updated = contracted().update(JobApplicationChanges.builder().jobTitle("Analyst").build());
 
             assertThat(updated.posting().contractType()).isEqualTo("CLT");
             assertThat(updated.posting().salaryRange()).isEqualTo("R$ 8.000");
@@ -174,7 +169,7 @@ class JobApplicationTest {
 
         @Test
         void blankTextRemovesOptionalPostingFields() {
-            var updated = contracted().update(postingChange("", " ", "", ""), TODAY);
+            var updated = contracted().update(postingChange("", " ", "", ""));
 
             assertThat(updated.posting().finalClient()).isNull();
             assertThat(updated.posting().seniority()).isNull();
@@ -184,23 +179,23 @@ class JobApplicationTest {
 
         @Test
         void addingSalaryRangeUsesTheExistingContractType() {
-            var withContract = acme().update(postingChange(null, null, "CLT", null), TODAY);
+            var withContract = acme().update(postingChange(null, null, "CLT", null));
 
-            assertThat(withContract.update(postingChange(null, null, null, "R$ 9.000"), TODAY).posting().salaryRange())
+            assertThat(withContract.update(postingChange(null, null, null, "R$ 9.000")).posting().salaryRange())
                     .isEqualTo("R$ 9.000");
         }
 
         @Test
         void addingSalaryRangeWithoutAnyContractTypeIsRejected() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> acme().update(postingChange(null, null, null, "R$ 9.000"), TODAY))
+                    .isThrownBy(() -> acme().update(postingChange(null, null, null, "R$ 9.000")))
                     .withMessage("Para informar a faixa salarial, informe também o tipo de contrato");
         }
 
         @Test
         void removingContractTypeWhileSalaryRangeStaysIsRejected() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> contracted().update(postingChange(null, null, "", null), TODAY))
+                    .isThrownBy(() -> contracted().update(postingChange(null, null, "", null)))
                     .withMessage("Para informar a faixa salarial, informe também o tipo de contrato");
         }
     }
@@ -210,7 +205,7 @@ class JobApplicationTest {
 
         @Test
         void changingDescriptionTogetherWithRequirementsChangesBoth() {
-            var updated = acme().update(contentChange("Kafka e Java", List.of(JAVA)), TODAY);
+            var updated = acme().update(contentChange("Kafka e Java", List.of(JAVA)));
 
             assertThat(updated.posting().description()).isEqualTo("Kafka e Java");
             assertThat(updated.posting().requirements()).containsExactly(JAVA);
@@ -218,7 +213,7 @@ class JobApplicationTest {
 
         @Test
         void changingRequirementsAloneKeepsTheDescription() {
-            var updated = acme().update(contentChange(null, List.of(NODE)), TODAY);
+            var updated = acme().update(contentChange(null, List.of(NODE)));
 
             assertThat(updated.posting().requirements()).containsExactly(NODE);
             assertThat(updated.posting().description()).isEqualTo("Description");
@@ -228,7 +223,7 @@ class JobApplicationTest {
         void updateReplacesTheWholeRequirementList() {
             var original = withRequirements(JAVA, ENGLISH);
 
-            var updated = original.update(requirementsChange(List.of(NODE)), TODAY);
+            var updated = original.update(requirementsChange(List.of(NODE)));
 
             assertThat(updated.posting().requirements()).containsExactly(NODE);
             assertThat(updated.posting().jobTitle()).isEqualTo("Java Developer");
@@ -236,13 +231,13 @@ class JobApplicationTest {
 
         @Test
         void updateWithEmptyListRemovesAllRequirements() {
-            assertThat(withRequirements(JAVA, ENGLISH).update(requirementsChange(List.of()), TODAY).posting().requirements()).isEmpty();
+            assertThat(withRequirements(JAVA, ENGLISH).update(requirementsChange(List.of())).posting().requirements()).isEmpty();
         }
 
         @Test
         void updateWithoutRequirementsKeepsThem() {
             var updated = withRequirements(JAVA, ENGLISH)
-                    .update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY);
+                    .update(JobApplicationChanges.builder().jobTitle("Analyst").build());
 
             assertThat(updated.posting().requirements()).containsExactly(JAVA, ENGLISH);
         }
@@ -251,147 +246,67 @@ class JobApplicationTest {
         @ValueSource(strings = {"", "   "})
         void blankDescriptionIsRejectedOnUpdate(String description) {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> acme().update(contentChange(description, List.of()), TODAY))
+                    .isThrownBy(() -> acme().update(contentChange(description, List.of())))
                     .withMessage("Campo obrigatório: description");
         }
     }
 
-    // acme(): candidatura e status em 2026-11-20; hoje (TODAY) é 2026-11-25
+    // O status é calculado pelo processo; aqui só se garante que a candidatura entrega as mudanças a ele
     @Nested
-    class UpdateStatus {
+    class UpdateProcess {
 
         @Test
-        void changingStatusMovesStatusDateToToday() {
-            var updated = acme().update(processChange(" Entrevista marcada ", null, null, null), TODAY);
+        void updatesSituationNotesAndStepsKeepingIdAndPosting() {
+            var original = acme();
+            var step = new ProcessStep("Triagem", StepState.PASSED, null, LocalDate.of(2026, 11, 21), null, null);
 
-            assertThat(updated.process().status()).isEqualTo("Entrevista marcada");
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(TODAY);
+            var updated = original.update(JobApplicationChanges.builder()
+                    .situation(Situation.WITHDRAWN)
+                    .notes("Salário abaixo do esperado")
+                    .steps(List.of(step))
+                    .build());
+
+            assertThat(updated).isEqualTo(new JobApplication(original.id(), original.posting(),
+                    new ApplicationProcess("LinkedIn", LocalDate.of(2026, 11, 20), Situation.WITHDRAWN,
+                            "Salário abaixo do esperado", List.of(step))));
         }
 
         @Test
-        void changingSituationTogetherWithStatusChangesBothAndMovesDateToToday() {
-            var updated = acme().update(statusChange("Reprovado na técnica", null, Situation.REJECTED), TODAY);
-
-            assertThat(updated.process().status()).isEqualTo("Reprovado na técnica");
-            assertThat(updated.process().situation()).isEqualTo(Situation.REJECTED);
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(TODAY);
-        }
-
-        @Test
-        void givenStatusDateWinsOverToday() {
-            var updated = acme().update(processChange("Entrevista marcada", LocalDate.of(2026, 11, 22), null, null), TODAY);
-
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 22));
-        }
-
-        @Test
-        void resendingTheSameStatusWithADateCorrectsTheStatusDate() {
-            var updated = acme().update(statusChange("Candidatura enviada", LocalDate.of(2026, 11, 22), null), TODAY);
-
-            assertThat(updated.process().status()).isEqualTo("Candidatura enviada");
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 22));
-        }
-
-        @Test
-        void sendingTheSameStatusAndSituationKeepsStatusDate() {
-            var updated = acme().update(processChange("Candidatura enviada", null, Situation.ACTIVE, null), TODAY);
-
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 20));
-        }
-
-        @Test
-        void otherChangesKeepStatusAndStatusDate() {
-            var updated = acme().update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY);
+        void postingChangesKeepTheProcess() {
+            var updated = acme().update(JobApplicationChanges.builder().jobTitle("Analyst").build());
 
             assertThat(updated.process()).isEqualTo(acme().process());
-        }
-
-        // Corrigir a data da candidatura enquanto o status nunca mudou
-        @Test
-        void changingAppliedOnMovesStatusDateWhenStatusNeverChanged() {
-            var updated = acme().update(JobApplicationChanges.builder()
-                    .appliedOn(LocalDate.of(2026, 11, 18))
-                    .build(), TODAY);
-
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 18));
-        }
-
-        @Test
-        void changingAppliedOnKeepsStatusDateOfAChangedStatus() {
-            var interviewed = acme().update(processChange("Entrevista feita", LocalDate.of(2026, 11, 24), null, null), TODAY);
-
-            var updated = interviewed.update(JobApplicationChanges.builder()
-                    .appliedOn(LocalDate.of(2026, 11, 18))
-                    .build(), TODAY);
-
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 24));
-        }
-
-        @Test
-        void changingSituationAloneIsRejected() {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> processChange(null, null, Situation.REJECTED, null))
-                    .withMessage("Para informar a situação, envie também o status");
-        }
-
-        @Test
-        void statusDateBeforeApplicationIsRejectedOnUpdate() {
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> acme().update(statusChange("Entrevista", LocalDate.of(2026, 11, 19), null), TODAY))
-                    .withMessage("A data do status não pode ser anterior à candidatura: 2026-11-19");
-        }
-
-        @Test
-        void movingApplicationAfterAChangedStatusDateIsRejected() {
-            var interviewed = acme().update(statusChange("Entrevista feita", LocalDate.of(2026, 11, 22), null), TODAY);
-
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> interviewed.update(JobApplicationChanges.builder()
-                            .appliedOn(LocalDate.of(2026, 11, 23))
-                            .build(), TODAY))
-                    .withMessage("A data do status não pode ser anterior à candidatura: 2026-11-22");
         }
     }
 
     @Nested
-    class UpdateSteps {
+    class Steps {
+
+        private final ProcessStep interview = new ProcessStep("Entrevista técnica", StepState.SCHEDULED,
+                LocalDate.of(2026, 12, 3), null, null, null);
 
         @Test
-        void updateReplacesTheWholeStepList() {
-            var withSteps = acme().update(processChange(null, null, null, List.of(STEP_A, STEP_B)), TODAY);
+        void addsAStepKeepingIdAndPosting() {
+            var original = acme();
 
-            var updated = withSteps.update(processChange(null, null, null, List.of(STEP_B)), TODAY);
+            var updated = original.addStep(interview);
 
-            assertThat(updated.process().steps()).containsExactly(STEP_B);
-            assertThat(updated.process().status()).isEqualTo("Candidatura enviada");
+            assertThat(updated.id()).isEqualTo(original.id());
+            assertThat(updated.posting()).isEqualTo(original.posting());
+            assertThat(updated.process().steps()).containsExactly(interview);
         }
 
         @Test
-        void updateWithEmptyStepsRemovesThem() {
-            var withSteps = acme().update(processChange(null, null, null, List.of(STEP_A)), TODAY);
+        void updatesAStepKeepingIdAndPosting() {
+            var original = acme().addStep(interview);
 
-            assertThat(withSteps.update(processChange(null, null, null, List.of()), TODAY).process().steps()).isEmpty();
-        }
+            var updated = original.updateStep("entrevista tecnica",
+                    new StepChange(StepState.AWAITING_FEEDBACK, null, LocalDate.of(2026, 11, 25), null, null));
 
-        @Test
-        void updateWithoutStepsKeepsThem() {
-            var withSteps = acme().update(processChange(null, null, null, List.of(STEP_A, STEP_B)), TODAY);
-
-            var updated = withSteps.update(processChange("Aguardando", null, null, null), TODAY);
-
-            assertThat(updated.process().steps()).containsExactly(STEP_A, STEP_B);
-        }
-
-        @Test
-        void movingApplicationAfterAStepIsRejected() {
-            var withStep = acme().update(processChange(null, null, null,
-                    List.of(new ProcessStep("Fit cultural", LocalDate.of(2026, 11, 21), true, null))), TODAY);
-
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> withStep.update(JobApplicationChanges.builder()
-                            .appliedOn(LocalDate.of(2026, 11, 22))
-                            .build(), TODAY))
-                    .withMessage("A etapa não pode ser anterior à candidatura: Fit cultural (2026-11-21)");
+            assertThat(updated.id()).isEqualTo(original.id());
+            assertThat(updated.posting()).isEqualTo(original.posting());
+            assertThat(updated.process().steps()).containsExactly(new ProcessStep("Entrevista técnica",
+                    StepState.AWAITING_FEEDBACK, LocalDate.of(2026, 12, 3), LocalDate.of(2026, 11, 25), null, null));
         }
     }
 
@@ -405,16 +320,12 @@ class JobApplicationTest {
         return JobApplicationChanges.builder().content(new ContentChange(null, requirements)).build();
     }
 
-    private static JobApplicationChanges statusChange(String status, LocalDate on, Situation situation) {
-        return JobApplicationChanges.builder().statusChange(new StatusChange(status, on, situation)).build();
-    }
-
     private static JobApplicationChanges contentChange(String description, List<Requirement> requirements) {
         return JobApplicationChanges.builder().content(new ContentChange(description, requirements)).build();
     }
 
     private static JobApplication contracted() {
-        return acme().update(postingChange("Banco Alfa", "Pleno", "CLT", "R$ 8.000"), TODAY);
+        return acme().update(postingChange("Banco Alfa", "Pleno", "CLT", "R$ 8.000"));
     }
 
     private static JobApplicationChanges postingChange(String finalClient, String seniority, String contractType,
@@ -424,14 +335,6 @@ class JobApplicationTest {
                 .seniority(seniority)
                 .contractType(contractType)
                 .salaryRange(salaryRange)
-                .build();
-    }
-
-    private static JobApplicationChanges processChange(String status, LocalDate statusUpdatedOn, Situation situation,
-                                                       List<ProcessStep> steps) {
-        return JobApplicationChanges.builder()
-                .statusChange(StatusChange.of(status, statusUpdatedOn, situation))
-                .steps(steps)
                 .build();
     }
 

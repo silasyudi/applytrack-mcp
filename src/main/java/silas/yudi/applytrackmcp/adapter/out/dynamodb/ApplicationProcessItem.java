@@ -9,31 +9,30 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * O processo, gravado como mapa dentro do item da candidatura.
+ * O processo, gravado como mapa dentro do item da candidatura. Status e quem precisa agir não são gravados:
+ * são calculados a partir das etapas.
  */
 @DynamoDbBean
 public class ApplicationProcessItem {
 
     private String platform;
     private LocalDate appliedOn;
-    private String status;
-    private LocalDate statusUpdatedOn;
     private Situation situation;
+    private String notes;
     private List<ProcessStepItem> steps;
 
     static ApplicationProcessItem from(ApplicationProcess process) {
         var item = new ApplicationProcessItem();
         item.setPlatform(process.platform());
         item.setAppliedOn(process.appliedOn());
-        item.setStatus(process.status());
-        item.setStatusUpdatedOn(process.statusUpdatedOn());
         item.setSituation(process.situation());
+        item.setNotes(process.notes());
         item.setSteps(toItems(process.steps()));
         return item;
     }
 
     ApplicationProcess toDomain() {
-        return new ApplicationProcess(platform, appliedOn, status, statusUpdatedOn, situation, toSteps(steps));
+        return new ApplicationProcess(platform, appliedOn, situation, notes, toSteps(steps));
     }
 
     private static List<ProcessStepItem> toItems(List<ProcessStep> steps) {
@@ -61,28 +60,20 @@ public class ApplicationProcessItem {
         this.appliedOn = appliedOn;
     }
 
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public LocalDate getStatusUpdatedOn() {
-        return statusUpdatedOn;
-    }
-
-    public void setStatusUpdatedOn(LocalDate statusUpdatedOn) {
-        this.statusUpdatedOn = statusUpdatedOn;
-    }
-
     public Situation getSituation() {
         return situation;
     }
 
     public void setSituation(Situation situation) {
         this.situation = situation;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
     }
 
     public List<ProcessStepItem> getSteps() {

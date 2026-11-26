@@ -18,7 +18,8 @@ import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
-import silas.yudi.applytrackmcp.domain.model.StatusChange;
+import silas.yudi.applytrackmcp.domain.model.StepChange;
+import silas.yudi.applytrackmcp.domain.model.StepState;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -88,9 +89,11 @@ class JobApplicationServiceTest {
         }
 
         @Test
-        void registersDoneStepTodayAndPendingStepInTheFuture() {
-            var application = withSteps(new ProcessStep("Fit cultural", LocalDate.of(2026, 11, 25), true, null),
-                    new ProcessStep("Entrevista técnica", LocalDate.of(2026, 12, 3), false, null));
+        void registersStepCompletedTodayAndStepScheduledInTheFuture() {
+            var application = withSteps(
+                    new ProcessStep("Fit cultural", StepState.PASSED, null, LocalDate.of(2026, 11, 25), null, null),
+                    new ProcessStep("Entrevista técnica", StepState.SCHEDULED, LocalDate.of(2026, 12, 3), null, null,
+                            null));
 
             service.register(application);
 
@@ -106,27 +109,15 @@ class JobApplicationServiceTest {
             verifyNoMoreInteractions(repository);
         }
 
-        @Test
-        void doesNotRegisterApplicationWithFutureStatusDate() {
-            var application = new JobApplication(
-                    aPosting().description("Full description").build(),
-                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), "Entrevista marcada",
-                            LocalDate.of(2026, 11, 26), null, null));
-
-            assertThatIllegalArgumentException()
-                    .isThrownBy(() -> service.register(application))
-                    .withMessage("A data do status não pode ser futura: 2026-11-26");
-            verifyNoMoreInteractions(repository);
-        }
 
         // Hoje é 2026-11-25 pelo relógio fixo
         @Test
-        void doesNotRegisterADoneStepInTheFuture() {
-            var application = withSteps(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 26), true, null));
+        void doesNotRegisterAStepCompletedInTheFuture() {
+            var application = withSteps(completedOn(LocalDate.of(2026, 11, 26)));
 
             assertThatIllegalArgumentException()
                     .isThrownBy(() -> service.register(application))
-                    .withMessage("Etapa marcada como feita não pode ter data futura: Entrevista técnica (2026-11-26)");
+                    .withMessage("A etapa não pode ter conclusão futura: Entrevista técnica (2026-11-26)");
             verifyNoMoreInteractions(repository);
         }
     }
@@ -291,8 +282,9 @@ class JobApplicationServiceTest {
                             .description("Full description")
                             .requirements(List.of(new Requirement("Java", "Avançado", Importance.REQUIRED)))
                             .build(),
-                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica marcada",
-                            null, null, List.of(new ProcessStep("Feita a triagem", null, true, "Feita por telefone"))));
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), null, "Entrevista técnica marcada",
+                            List.of(new ProcessStep("Feita a triagem", StepState.PASSED, null, null, null,
+                                    "Feita por telefone"))));
             when(repository.findAll()).thenReturn(List.of(detailed));
 
             assertThat(service.search(term)).isEmpty();
@@ -392,18 +384,6 @@ class JobApplicationServiceTest {
             verifyNoMoreInteractions(repository);
         }
 
-        // O relógio fixo marca 01:00 UTC do dia 26, que ainda é dia 25 no Brasil
-        @Test
-        void usesTodayInBrazilWhenStatusChanges() {
-            when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
-
-            var updated = service.update(acme.id(), JobApplicationChanges.builder()
-                    .statusChange(new StatusChange("Entrevista marcada", null, null))
-                    .build());
-
-            assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 25));
-            verify(repository).save(updated);
-        }
 
         // Um registro que já esteja com data errada não pode impedir a correção dos outros campos
         @Test
@@ -468,23 +448,109 @@ class JobApplicationServiceTest {
             verify(repository, never()).save(any());
         }
 
+
         @Test
-        void doesNotUpdateToFutureStatusDate() {
+        void doesNotUpdateWithAStepCompletedInTheFuture() {
             assertThatIllegalArgumentException()
                     .isThrownBy(() -> service.update(acme.id(), JobApplicationChanges.builder()
-                            .statusChange(new StatusChange("Entrevista marcada", LocalDate.of(2026, 11, 26), null))
+                            .steps(List.of(completedOn(LocalDate.of(2026, 11, 26))))
                             .build()))
-                    .withMessage("A data do status não pode ser futura: 2026-11-26");
+                    .withMessage("A etapa não pode ter conclusão futura: Entrevista técnica (2026-11-26)");
             verify(repository, never()).save(any());
+        }
+    }
+
+    @Nested
+    class AddStep {
+
+        private final ProcessStep interview = new ProcessStep("Entrevista técnica", StepState.SCHEDULED,
+                LocalDate.of(2026, 12, 3), null, null, null);
+
+        @Test
+        void addsTheStepAndSaves() {
+            when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
+
+            var updated = service.addStep(acme.id(), interview);
+
+            assertThat(updated).isEqualTo(acme.addStep(interview));
+            verify(repository).save(updated);
         }
 
         @Test
-        void doesNotUpdateWithADoneStepInTheFuture() {
+        void doesNotSaveWhenApplicationDoesNotExist() {
+            when(repository.findById("unknown")).thenReturn(Optional.empty());
+
+            assertThatExceptionOfType(JobApplicationNotFoundException.class)
+                    .isThrownBy(() -> service.addStep("unknown", interview))
+                    .withMessage("Candidatura não encontrada: unknown");
+            verify(repository, never()).save(any());
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        void requiresId(String id) {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> service.update(acme.id(), JobApplicationChanges.builder()
-                            .steps(List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 26), true, null)))
-                            .build()))
-                    .withMessage("Etapa marcada como feita não pode ter data futura: Entrevista técnica (2026-11-26)");
+                    .isThrownBy(() -> service.addStep(id, interview))
+                    .withMessage("Campo obrigatório: id");
+            verifyNoInteractions(repository);
+        }
+
+        @Test
+        void doesNotAddAStepCompletedInTheFuture() {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> service.addStep(acme.id(), completedOn(LocalDate.of(2026, 11, 26))))
+                    .withMessage("A etapa não pode ter conclusão futura: Entrevista técnica (2026-11-26)");
+            verify(repository, never()).save(any());
+        }
+    }
+
+    @Nested
+    class UpdateStep {
+
+        private final ProcessStep interview = new ProcessStep("Entrevista técnica", StepState.SCHEDULED,
+                LocalDate.of(2026, 11, 25), null, null, null);
+        private final StepChange done = new StepChange(StepState.AWAITING_FEEDBACK, null, LocalDate.of(2026, 11, 25),
+                LocalDate.of(2026, 12, 1), null);
+
+        @Test
+        void updatesTheStepAndSaves() {
+            var withInterview = acme.addStep(interview);
+            when(repository.findById(acme.id())).thenReturn(Optional.of(withInterview));
+
+            var updated = service.updateStep(acme.id(), "entrevista tecnica", done);
+
+            assertThat(updated).isEqualTo(withInterview.updateStep("Entrevista técnica", done));
+            verify(repository).save(updated);
+        }
+
+        @Test
+        void doesNotSaveWhenApplicationDoesNotExist() {
+            when(repository.findById("unknown")).thenReturn(Optional.empty());
+
+            assertThatExceptionOfType(JobApplicationNotFoundException.class)
+                    .isThrownBy(() -> service.updateStep("unknown", "Entrevista técnica", done))
+                    .withMessage("Candidatura não encontrada: unknown");
+            verify(repository, never()).save(any());
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        void requiresId(String id) {
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> service.updateStep(id, "Entrevista técnica", done))
+                    .withMessage("Campo obrigatório: id");
+            verifyNoInteractions(repository);
+        }
+
+        @Test
+        void doesNotSetACompletionInTheFuture() {
+            var future = new StepChange(StepState.AWAITING_FEEDBACK, null, LocalDate.of(2026, 11, 26), null, null);
+
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> service.updateStep(acme.id(), "Entrevista técnica", future))
+                    .withMessage("A etapa não pode ter conclusão futura: Entrevista técnica (2026-11-26)");
             verify(repository, never()).save(any());
         }
     }
@@ -528,7 +594,11 @@ class JobApplicationServiceTest {
 
     private static JobApplication withSteps(ProcessStep... steps) {
         return new JobApplication(aPosting().description("Full description").build(),
-                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), null, null, null, List.of(steps)));
+                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), null, null, List.of(steps)));
+    }
+
+    private static ProcessStep completedOn(LocalDate date) {
+        return new ProcessStep("Entrevista técnica", StepState.AWAITING_FEEDBACK, null, date, null, null);
     }
 
     private static JobApplicationChanges titleChange(String jobTitle) {

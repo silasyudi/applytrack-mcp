@@ -10,6 +10,7 @@ import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
+import silas.yudi.applytrackmcp.domain.model.StepState;
 import silas.yudi.applytrackmcp.support.DynamoDbLocalContainer;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -114,11 +115,15 @@ class DynamoDbJobApplicationRepositoryIT {
         void savesAndReadsTheWholeProcess() {
             var application = new JobApplication(
                     aPosting().build(),
-                    new ApplicationProcess("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica realizada, aguardando feedback",
-                            LocalDate.of(2026, 11, 24), Situation.OFFER, List.of(
-                            new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
-                            new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Kafka"),
-                            new ProcessStep("Entrevista com líder", null, false, null))));
+                    new ApplicationProcess("Gupy", LocalDate.of(2026, 11, 20), Situation.OFFER, "Indicação do João",
+                            List.of(
+                                    new ProcessStep("Triagem", StepState.PASSED, null, LocalDate.of(2026, 11, 21), null,
+                                            null),
+                                    new ProcessStep("Entrevista técnica", StepState.AWAITING_FEEDBACK,
+                                            LocalDate.of(2026, 11, 24), LocalDate.of(2026, 11, 24),
+                                            LocalDate.of(2026, 12, 1), "Kafka"),
+                                    new ProcessStep("Entrevista com líder", StepState.SCHEDULED, null, null, null,
+                                            null))));
             repository.save(application);
 
             assertThat(repository.findById(application.id())).contains(application);
@@ -207,8 +212,6 @@ class DynamoDbJobApplicationRepositoryIT {
                     "process", AttributeValue.fromM(Map.of(
                             "platform", AttributeValue.fromS("Gupy"),
                             "appliedOn", AttributeValue.fromS("2026-11-20"),
-                            "status", AttributeValue.fromS("Candidatura enviada"),
-                            "statusUpdatedOn", AttributeValue.fromS("2026-11-20"),
                             "situation", AttributeValue.fromS("ACTIVE"))))));
 
             assertThat(repository.findAll()).containsExactly(new JobApplication("1",

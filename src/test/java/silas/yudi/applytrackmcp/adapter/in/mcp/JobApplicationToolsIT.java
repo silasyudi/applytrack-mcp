@@ -19,8 +19,6 @@ import silas.yudi.applytrackmcp.support.DynamoDbLocalContainer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +37,8 @@ class JobApplicationToolsIT {
     private static final String SEARCH = "search_job_applications";
     private static final String GET = "get_job_application";
     private static final String UPDATE = "update_job_application";
+    private static final String ADD_STEP = "add_job_application_step";
+    private static final String UPDATE_STEP = "update_job_application_step";
     private static final String DELETE = "delete_job_application";
 
     private static final Map<String, Object> ACME = merge(
@@ -53,9 +53,8 @@ class JobApplicationToolsIT {
                     "seniority", "Pleno",
                     "contractType", "CLT",
                     "salaryRange", "R$ 8.000 a R$ 10.000"),
-            Map.of("status", "Candidatura enviada",
-                    "statusUpdatedOn", "2026-11-19",
-                    "situation", "ACTIVE",
+            Map.of("situation", "ACTIVE",
+                    "notes", "Indicação do João",
                     "steps", List.of()));
 
     // Acentos também provam que o texto sobrevive ao stdio no Windows
@@ -73,12 +72,15 @@ class JobApplicationToolsIT {
                     "seniority", "Sênior",
                     "contractType", "PJ",
                     "salaryRange", "R$ 15.000"),
-            Map.of("status", "Entrevista técnica realizada, aguardando feedback",
-                    "statusUpdatedOn", "2026-11-24",
-                    "situation", "ACTIVE",
+            Map.of("situation", "ACTIVE",
+                    "notes", "Contato pelo recrutador",
                     "steps", List.of(
-                            Map.of("name", "Candidatura", "date", "2026-11-20", "done", true, "notes", "Pelo WhatsApp"),
-                            Map.of("name", "Entrevista técnica", "date", "2026-11-24", "done", true, "notes", "Kafka"))));
+                            step("Triagem", "PASSED", null, "2026-11-21", null, "Pelo WhatsApp"),
+                            step("Entrevista técnica", "AWAITING_FEEDBACK", "2026-11-24", "2026-11-24", "2026-12-01",
+                                    "Kafka"))));
+
+    // Calculados pelo servidor a partir de BETA
+    private static final String BETA_STATUS = "Aguardando feedback de Entrevista técnica (prometido até 2026-12-01)";
 
     // Uma tabela nova por teste: cada um começa sem candidaturas
     private final String tableName = "test-" + UUID.randomUUID();
@@ -109,10 +111,10 @@ class JobApplicationToolsIT {
     class Catalog {
 
         @Test
-        void exposesExactlyFiveTools() {
+        void exposesExactlySevenTools() {
             assertThat(client.listTools().tools())
                     .extracting(Tool::name)
-                    .containsExactlyInAnyOrder(REGISTER, SEARCH, GET, UPDATE, DELETE);
+                    .containsExactlyInAnyOrder(REGISTER, SEARCH, GET, UPDATE, ADD_STEP, UPDATE_STEP, DELETE);
         }
 
         @Test
@@ -144,6 +146,8 @@ class JobApplicationToolsIT {
                     SEARCH, List.of(true, false, false),
                     GET, List.of(true, false, false),
                     UPDATE, List.of(false, true, false),
+                    ADD_STEP, List.of(false, false, false),
+                    UPDATE_STEP, List.of(false, true, false),
                     DELETE, List.of(false, true, false)));
         }
     }
@@ -225,31 +229,23 @@ class JobApplicationToolsIT {
         @Test
         void registersWithDefaultProcess() throws IOException {
             var minimal = new HashMap<>(BETA);
-            minimal.keySet().removeAll(List.of("status", "statusUpdatedOn", "situation", "steps"));
+            minimal.keySet().removeAll(List.of("situation", "notes", "steps"));
             register(minimal);
 
-            var expected = new HashMap<>(minimal);
-            expected.putAll(
-                    Map.of("status", "Candidatura enviada",
-                            "statusUpdatedOn", "2026-11-20",
-                            "situation", "ACTIVE",
-                            "steps", List.of()));
+            var expected = new HashMap<String, Object>(minimal);
+            expected.put("situation", "ACTIVE");
+            expected.put("notes", null);
+            expected.put("steps", List.of());
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
         @Test
         void acceptsScheduledStepInTheFuture() throws IOException {
             var scheduled = new HashMap<>(ACME);
-            var step = new HashMap<String, Object>(Map.of("name", "Entrevista com líder", "date", "2999-01-01"));
-            scheduled.put("steps", List.of(step));
+            scheduled.put("steps", List.of(step("Entrevista com líder", "SCHEDULED", "2999-01-01", null, null, null)));
             register(scheduled);
 
-            var expectedStep = new HashMap<>(step);
-            expectedStep.put("done", false);
-            expectedStep.put("notes", null);
-            var expected = new HashMap<>(ACME);
-            expected.put("steps", List.of(expectedStep));
-            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+            assertThat(searchAndGet(Map.of())).containsExactly(scheduled);
         }
 
         @Test
@@ -355,7 +351,6 @@ class JobApplicationToolsIT {
         void rejectsFutureDateOnRegistration() throws IOException {
             var invalid = new HashMap<>(ACME);
             invalid.put("appliedOn", "2999-01-01");
-            invalid.remove("statusUpdatedOn"); // sem ela, a data do status acompanha a da candidatura
 
             var result = call(REGISTER, invalid);
 
@@ -366,33 +361,26 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void rejectsStatusDateBeforeApplicationAndInvalidStatusDate() throws IOException {
-            var before = new HashMap<>(ACME);
-            before.put("statusUpdatedOn", "2026-11-18");
-            var invalid = new HashMap<>(ACME);
-            invalid.put("statusUpdatedOn", "19/11/2026");
+        void rejectsInvalidStepAndRegistersNothing() throws IOException {
+            var invalidDate = new HashMap<>(ACME);
+            invalidDate.put("steps", List.of(step("Triagem", "PASSED", null, "21/11/2026", null, null)));
+            var scheduledButDone = new HashMap<>(ACME);
+            scheduledButDone.put("steps", List.of(step("Triagem", "SCHEDULED", null, "2026-11-21", null, null)));
+            var repeated = new HashMap<>(ACME);
+            repeated.put("steps", List.of(step("Triagem", "PASSED", null, null, null, null),
+                    step("triagem", "SCHEDULED", null, null, null, null)));
+            var unknownState = new HashMap<>(ACME);
+            unknownState.put("steps", List.of(Map.of("name", "Triagem", "state", "APROVADO")));
 
-            assertThat(text(call(REGISTER, before)).lines().distinct())
-                    .containsExactly("A data do status não pode ser anterior à candidatura: 2026-11-18");
-            assertThat(text(call(REGISTER, invalid)).lines().distinct())
-                    .containsExactly("Data inválida: 19/11/2026. Use o formato AAAA-MM-DD");
+            assertThat(text(call(REGISTER, invalidDate)).lines().distinct())
+                    .containsExactly("Data inválida: 21/11/2026. Use o formato AAAA-MM-DD");
+            assertThat(text(call(REGISTER, scheduledButDone)).lines().distinct())
+                    .containsExactly("Etapa marcada ainda não aconteceu: Triagem. Remova completedOn ou mude o estado");
+            assertThat(text(call(REGISTER, repeated)).lines().distinct()).containsExactly("Etapa repetida: triagem");
+            assertThat(call(REGISTER, unknownState).isError()).isTrue();
             assertThat(searchAndGet(Map.of())).isEmpty();
         }
 
-        @Test
-        void rejectsFutureStatusDateAndChangesNothing() throws IOException {
-            var invalid = new HashMap<>(ACME);
-            invalid.put("statusUpdatedOn", "2999-01-01");
-            var registration = call(REGISTER, invalid);
-            assertThat(registration.isError()).isTrue();
-            assertThat(text(registration).lines().distinct())
-                    .containsExactly("A data do status não pode ser futura: 2999-01-01");
-
-            register(ACME);
-            var update = call(UPDATE, Map.of("id", idOf("acme"), "statusUpdatedOn", "2999-01-01", "status", "x"));
-            assertThat(update.isError()).isTrue();
-            assertThat(searchAndGet(Map.of())).containsExactly(ACME);
-        }
 
         @Test
         void rejectsUnknownSituationAndRegistersNothing() throws IOException {
@@ -404,16 +392,16 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void rejectsStepBeforeApplicationAndDoneStepInTheFuture() throws IOException {
+        void rejectsStepBeforeApplicationAndCompletionInTheFuture() throws IOException {
             var early = new HashMap<>(ACME);
-            early.put("steps", List.of(Map.of("name", "Triagem", "date", "2026-11-18", "done", true)));
+            early.put("steps", List.of(step("Triagem", "PASSED", null, "2026-11-18", null, null)));
             var future = new HashMap<>(ACME);
-            future.put("steps", List.of(Map.of("name", "Técnica", "date", "2999-01-01", "done", true)));
+            future.put("steps", List.of(step("Técnica", "AWAITING_FEEDBACK", null, "2999-01-01", null, null)));
 
             assertThat(text(call(REGISTER, early)).lines().distinct())
                     .containsExactly("A etapa não pode ser anterior à candidatura: Triagem (2026-11-18)");
             assertThat(text(call(REGISTER, future)).lines().distinct())
-                    .containsExactly("Etapa marcada como feita não pode ter data futura: Técnica (2999-01-01)");
+                    .containsExactly("A etapa não pode ter conclusão futura: Técnica (2999-01-01)");
             assertThat(searchAndGet(Map.of())).isEmpty();
         }
     }
@@ -495,12 +483,13 @@ class JobApplicationToolsIT {
             assertThat(searchAndGet(Map.of("term", "unknown"))).isEmpty();
         }
 
-        // Contrato, faixa, link, plataforma, status, etapas e nível dos requisitos ficam fora da busca
+        // Contrato, faixa, link, plataforma, status, observações, etapas e nível dos requisitos ficam fora da busca
         @Test
         void doesNotFindTermsThatAreOnlyInOtherFields() throws IOException {
             register(BETA);
 
-            for (var term : List.of("pj", "15.000", "jobs/2", "whatsapp", "aguardando", "pelo", "avancado", "desirable")) {
+            for (var term : List.of("pj", "15.000", "jobs/2", "whatsapp", "aguardando", "recrutador", "kafka", "avancado",
+                    "desirable")) {
                 assertThat(searchAndGet(Map.of("term", term))).as(term).isEmpty();
             }
         }
@@ -516,6 +505,10 @@ class JobApplicationToolsIT {
             expected.remove("description");
             expected.remove("steps");
             expected.remove("salaryRange");
+            expected.remove("notes");
+            expected.put("status", "Aguardando contato após a candidatura");
+            expected.put("waitingFor", "COMPANY");
+            expected.put("lastActivityOn", "2026-11-19");
             var id = (String) found.getFirst().get("id");
             assertThat(UUID.fromString(id)).hasToString(id); // o id é um UUID válido
             expected.put("id", id);
@@ -544,15 +537,16 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void searchSummaryIncludesStatusButNotSteps() throws IOException {
+        void searchSummaryIncludesCalculatedStatusButNotNotesOrSteps() throws IOException {
             register(BETA);
 
             var summary = search(Map.of("term", "beta")).getFirst();
 
-            assertThat(summary).containsEntry("status", "Entrevista técnica realizada, aguardando feedback")
-                    .containsEntry("statusUpdatedOn", "2026-11-24")
-                    .containsEntry("situation", "ACTIVE")
-                    .doesNotContainKeys("steps", "description");
+            assertThat(summary).containsEntry("situation", "ACTIVE")
+                    .containsEntry("status", BETA_STATUS)
+                    .containsEntry("waitingFor", "COMPANY")
+                    .containsEntry("lastActivityOn", "2026-11-24")
+                    .doesNotContainKeys("notes", "steps", "description");
         }
     }
 
@@ -590,9 +584,21 @@ class JobApplicationToolsIT {
                             "requirements")
                     .containsEntry("company", "Soluções Beta");
             assertThat(asMap(nested.get("process")))
-                    .containsOnlyKeys("platform", "appliedOn", "status", "statusUpdatedOn", "situation", "steps")
+                    .containsOnlyKeys("platform", "appliedOn", "situation", "notes", "status", "waitingFor", "lastActivityOn",
+                            "steps")
                     .containsEntry("platform", "WhatsApp")
                     .containsEntry("appliedOn", "2026-11-20");
+        }
+
+        // Calculados a cada leitura: não existem no banco
+        @Test
+        void getCalculatesStatusWaitingForAndLastActivity() throws IOException {
+            register(BETA);
+
+            assertThat(asMap(getNested(idOf("beta")).get("process")))
+                    .containsEntry("status", BETA_STATUS)
+                    .containsEntry("waitingFor", "COMPANY")
+                    .containsEntry("lastActivityOn", "2026-11-24");
         }
 
         @Test
@@ -644,9 +650,8 @@ class JobApplicationToolsIT {
                             "appliedOn", "2026-11-18",
                             "requirements", List.of(
                                     Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"))),
-                    Map.of("status", "Candidatura enviada",
-                            "statusUpdatedOn", "2026-11-18",
-                            "situation", "ACTIVE",
+                    Map.of("situation", "ACTIVE",
+                            "notes", "Nova observação",
                             "steps", List.of()),
                     Map.of("finalClient", "Rede Gama",
                             "seniority", "Especialista",
@@ -753,68 +758,59 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void movingTheApplicationDateMovesAnUnchangedStatusDate() throws IOException {
+        void movesTheApplicationDateButNotBeforeAStep() throws IOException {
             register(ACME);
+            register(BETA);
 
             assertThat(call(UPDATE, Map.of("id", idOf("acme"), "appliedOn", "2026-11-17")).isError()).isFalse();
+            var afterStep = call(UPDATE, Map.of("id", idOf("beta"), "appliedOn", "2026-11-22"));
 
+            assertThat(text(afterStep).lines().distinct())
+                    .containsExactly("A etapa não pode ser anterior à candidatura: Triagem (2026-11-21)");
             var expected = new HashMap<>(ACME);
             expected.put("appliedOn", "2026-11-17");
-            expected.put("statusUpdatedOn", "2026-11-17");
+            assertThat(searchAndGet(Map.of())).containsExactly(BETA, expected);
+        }
+
+        @Test
+        void changesSituationAndNotesKeepingTheSteps() throws IOException {
+            register(BETA);
+            var id = idOf("beta");
+
+            assertThat(call(UPDATE, Map.of("id", id, "situation", "WITHDRAWN", "notes", "Salário abaixo do esperado"))
+                    .isError()).isFalse();
+
+            var expected = new HashMap<>(BETA);
+            expected.put("situation", "WITHDRAWN");
+            expected.put("notes", "Salário abaixo do esperado");
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+            assertThat(asMap(getNested(id).get("process")))
+                    .containsEntry("status", "Desistência")
+                    .containsEntry("waitingFor", "NOTHING");
+        }
+
+        @Test
+        void removesNotesWithBlankText() throws IOException {
+            register(BETA);
+
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "notes", " ")).isError()).isFalse();
+
+            var expected = new HashMap<String, Object>(BETA);
+            expected.put("notes", null);
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
-        @Test
-        void changingStatusMovesStatusDateToTodayInBrazil() throws IOException {
-            register(ACME);
-            var zone = ZoneId.of("America/Sao_Paulo");
-            var before = LocalDate.now(zone).toString();
-
-            assertThat(call(UPDATE, Map.of("id", idOf("acme"), "status", "Fit cultural marcado")).isError()).isFalse();
-
-            var after = LocalDate.now(zone).toString();
-            var stored = searchAndGet(Map.of()).getFirst();
-            assertThat(stored).containsEntry("status", "Fit cultural marcado");
-            // Duas datas só se o teste atravessar a meia-noite
-            assertThat(stored.get("statusUpdatedOn")).isIn(before, after);
-        }
 
         @Test
-        void resendingTheSameStatusKeepsTheStatusDate() throws IOException {
+        void updatesSituationAndReplacesTheSteps() throws IOException {
             register(BETA);
+            var steps = List.of(step("Entrevista técnica", "FAILED", null, "2026-11-24", null, "Kafka"));
 
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", BETA.get("status"), "situation", "ACTIVE"))
-                    .isError()).isFalse();
-
-            assertThat(searchAndGet(Map.of())).containsExactly(BETA);
-        }
-
-        @Test
-        void changesSituationTogetherWithStatus() throws IOException {
-            register(BETA);
-            var zone = ZoneId.of("America/Sao_Paulo");
-            var before = LocalDate.now(zone).toString();
-
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", "Desisti", "situation", "WITHDRAWN")).isError())
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "situation", "REJECTED", "steps", steps)).isError())
                     .isFalse();
 
-            var after = LocalDate.now(zone).toString();
-            var stored = searchAndGet(Map.of()).getFirst();
-            assertThat(stored).containsEntry("status", "Desisti").containsEntry("situation", "WITHDRAWN");
-            assertThat(stored.get("statusUpdatedOn")).isIn(before, after);
-        }
-
-        @Test
-        void updatesSituationAndStepsWithGivenStatusDate() throws IOException {
-            register(BETA);
-            var steps = List.of(Map.of("name", "Entrevista técnica", "date", "2026-11-24", "done", true, "notes", "Kafka"));
-
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", "Reprovado na técnica", "statusUpdatedOn",
-                    "2026-11-25", "situation", "REJECTED", "steps", steps)).isError()).isFalse();
-
             var expected = new HashMap<>(BETA);
-            expected.putAll(Map.of("status", "Reprovado na técnica", "statusUpdatedOn", "2026-11-25", "situation", "REJECTED",
-                    "steps", steps));
+            expected.putAll(Map.of("situation", "REJECTED", "steps", steps));
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
@@ -875,17 +871,111 @@ class JobApplicationToolsIT {
         }
 
         @Test
-        void rejectsStatusDateOrSituationWithoutStatusAndChangesNothing() throws IOException {
+        void rejectsStepCompletionInTheFutureAndChangesNothing() throws IOException {
+            register(BETA);
+
+            var result = call(UPDATE, Map.of("id", idOf("beta"),
+                    "steps", List.of(step("Técnica", "AWAITING_FEEDBACK", null, "2999-01-01", null, null))));
+
+            assertThat(text(result).lines().distinct())
+                    .containsExactly("A etapa não pode ter conclusão futura: Técnica (2999-01-01)");
+            assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+        }
+    }
+
+    @Nested
+    class AddStep {
+
+        @Test
+        void addsTheStepAtTheEndAndConfirmsWithTheNewStatus() throws IOException {
             register(BETA);
             var id = idOf("beta");
 
-            var dateOnly = call(UPDATE, Map.of("id", id, "statusUpdatedOn", "2026-11-25"));
-            var situationOnly = call(UPDATE, Map.of("id", id, "situation", "REJECTED"));
+            var result = call(ADD_STEP, Map.of("id", id,
+                    "name", "Entrevista com líder",
+                    "state", "SCHEDULED",
+                    "scheduledFor", "2999-01-01",
+                    "notes", "Com o gerente"));
 
-            assertThat(text(dateOnly).lines().distinct())
-                    .containsExactly("Para informar a data do status, envie também o status");
-            assertThat(text(situationOnly).lines().distinct())
-                    .containsExactly("Para informar a situação, envie também o status");
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).isEqualTo("Etapa incluída: Soluções Beta - Pessoa Desenvolvedora Sênior. "
+                    + "Status: Próxima etapa: Entrevista com líder em 2999-01-01 (id: " + id + ")");
+            var expected = new HashMap<>(BETA);
+            var steps = new ArrayList<>(asList(BETA.get("steps")));
+            steps.add(step("Entrevista com líder", "SCHEDULED", "2999-01-01", null, null, "Com o gerente"));
+            expected.put("steps", steps);
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
+        void rejectsInvalidStepAndChangesNothing() throws IOException {
+            register(BETA);
+            var id = idOf("beta");
+
+            var repeated = call(ADD_STEP, Map.of("id", id, "name", "triagem", "state", "SCHEDULED"));
+            var future = call(ADD_STEP, Map.of("id", id, "name", "Teste", "state", "AWAITING_FEEDBACK",
+                    "completedOn", "2999-01-01"));
+            var unknown = call(ADD_STEP, Map.of("id", "unknown", "name", "Teste", "state", "SCHEDULED"));
+
+            assertThat(text(repeated).lines().distinct()).containsExactly("Etapa repetida: triagem");
+            assertThat(text(future).lines().distinct())
+                    .containsExactly("A etapa não pode ter conclusão futura: Teste (2999-01-01)");
+            assertThat(text(unknown).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
+            assertThat(call(ADD_STEP, Map.of("id", id, "name", "Teste")).isError()).isTrue();
+            assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+        }
+    }
+
+    @Nested
+    class UpdateStep {
+
+        @Test
+        void updatesOnlyTheGivenFieldsAndConfirmsWithTheNewStatus() throws IOException {
+            register(BETA);
+            var id = idOf("beta");
+
+            var result = call(UPDATE_STEP, Map.of("id", id, "name", "entrevista tecnica", "state", "PASSED"));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result)).isEqualTo("Etapa atualizada: Soluções Beta - Pessoa Desenvolvedora Sênior. "
+                    + "Status: Aguardando contato após aprovação em Entrevista técnica (id: " + id + ")");
+            var expected = new HashMap<>(BETA);
+            expected.put("steps", List.of(asList(BETA.get("steps")).getFirst(),
+                    step("Entrevista técnica", "PASSED", "2026-11-24", "2026-11-24", "2026-12-01", "Kafka")));
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
+        void removesStepNotesWithBlankText() throws IOException {
+            register(BETA);
+
+            assertThat(call(UPDATE_STEP, Map.of("id", idOf("beta"), "name", "Triagem", "notes", "")).isError())
+                    .isFalse();
+
+            var expected = new HashMap<>(BETA);
+            expected.put("steps", List.of(step("Triagem", "PASSED", null, "2026-11-21", null, null),
+                    asList(BETA.get("steps")).getLast()));
+            assertThat(searchAndGet(Map.of())).containsExactly(expected);
+        }
+
+        @Test
+        void rejectsInvalidChangeAndChangesNothing() throws IOException {
+            register(BETA);
+            var id = idOf("beta");
+
+            var unknownStep = call(UPDATE_STEP, Map.of("id", id, "name", "Teste", "state", "PASSED"));
+            var empty = call(UPDATE_STEP, Map.of("id", id, "name", "Triagem"));
+            var blankDate = call(UPDATE_STEP, Map.of("id", id, "name", "Triagem", "completedOn", " "));
+            var future = call(UPDATE_STEP, Map.of("id", id, "name", "Triagem", "completedOn", "2999-01-01"));
+            var unknown = call(UPDATE_STEP, Map.of("id", "unknown", "name", "Triagem", "state", "PASSED"));
+
+            assertThat(text(unknownStep).lines().distinct()).containsExactly("Etapa não encontrada: Teste");
+            assertThat(text(empty).lines().distinct())
+                    .containsExactly("Informe ao menos um campo da etapa para alterar");
+            assertThat(text(blankDate).lines().distinct()).containsExactly("Campo obrigatório: completedOn");
+            assertThat(text(future).lines().distinct())
+                    .containsExactly("A etapa não pode ter conclusão futura: Triagem (2999-01-01)");
+            assertThat(text(unknown).lines().distinct()).containsExactly("Candidatura não encontrada: unknown");
             assertThat(searchAndGet(Map.of())).containsExactly(BETA);
         }
     }
@@ -946,6 +1036,19 @@ class JobApplicationToolsIT {
         return Map.copyOf(merged);
     }
 
+    // Etapa como o servidor devolve: todos os campos, nulos inclusive
+    private static Map<String, Object> step(String name, String state, String scheduledFor, String completedOn,
+                                            String feedbackExpectedBy, String notes) {
+        var step = new HashMap<String, Object>();
+        step.put("name", name);
+        step.put("state", state);
+        step.put("scheduledFor", scheduledFor);
+        step.put("completedOn", completedOn);
+        step.put("feedbackExpectedBy", feedbackExpectedBy);
+        step.put("notes", notes);
+        return step;
+    }
+
     private void register(Map<String, Object> application) {
         assertThat(call(REGISTER, application).isError()).isFalse();
     }
@@ -964,13 +1067,15 @@ class JobApplicationToolsIT {
         return complete;
     }
 
-    // Junta posting e process num mapa só, para comparar com os mapas planos dos testes
+    // Junta posting e process num mapa só, para comparar com os mapas planos dos testes.
+    // Os campos calculados saem: têm testes próprios
     private Map<String, Object> get(String id) throws IOException {
         var nested = getNested(id);
         var flat = new HashMap<String, Object>();
         flat.put("id", nested.get("id"));
         flat.putAll(asMap(nested.get("posting")));
         flat.putAll(asMap(nested.get("process")));
+        flat.keySet().removeAll(List.of("status", "waitingFor", "lastActivityOn"));
         return flat;
     }
 
@@ -983,6 +1088,11 @@ class JobApplicationToolsIT {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> asMap(Object value) {
         return (Map<String, Object>) value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> asList(Object value) {
+        return (List<Object>) value;
     }
 
     private String idOf(String term) throws IOException {

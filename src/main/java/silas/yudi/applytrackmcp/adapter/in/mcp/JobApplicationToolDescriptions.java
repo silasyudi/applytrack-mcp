@@ -16,16 +16,19 @@ final class JobApplicationToolDescriptions {
     private static final String REQUIREMENTS = "Requisitos citados na descrição: tecnologias, idiomas, "
             + "certificações. Extraia só o que está escrito, sem inventar";
 
-    private static final String STATUS = "Status atual em texto livre, como o usuário descreveria: "
-            + "\"Entrevista técnica realizada, aguardando feedback\"";
+    private static final String SITUATIONS = "Situação geral do processo: ACTIVE (em andamento), OFFER (proposta), "
+            + "HIRED (contratado), REJECTED (reprovado), WITHDRAWN (desistiu) ou CLOSED (vaga fechada). Não muda "
+            + "sozinha: quando o usuário for reprovado, desistir ou receber proposta, atualize-a";
 
-    private static final String SITUATIONS = "ACTIVE (em andamento), OFFER (proposta), HIRED (contratado), "
-            + "REJECTED (reprovado), WITHDRAWN (desistiu) ou CLOSED (vaga fechada)";
+    private static final String NOTES = "Observações livres sobre o processo, para o que não cabe nas etapas";
 
-    private static final String STEPS = "Etapas do processo, em ordem: candidatura, fit cultural, entrevista "
-            + "técnica etc.";
+    private static final String STEPS = "Etapas do processo, em ordem: triagem, fit cultural, entrevista técnica, "
+            + "teste técnico etc. Cada uma com seu estado; o status do processo é calculado a partir delas";
 
     private static final String DATE_FORMAT = "no formato AAAA-MM-DD";
+
+    private static final String STEP_STATES = "SCHEDULED (marcada, ou teste recebido a fazer), AWAITING_FEEDBACK "
+            + "(feita ou entregue, esperando retorno), PASSED (aprovado), FAILED (reprovado) ou CANCELLED (cancelada)";
 
     // ---------- tools
 
@@ -41,18 +44,29 @@ final class JobApplicationToolDescriptions {
             + "cliente final, no cargo, na descrição da vaga e nos nomes dos requisitos, ignorando acentos e "
             + "maiúsculas; por ser trecho, \"java\" também encontra \"JavaScript\". Sem termo, lista todas. "
             + "Resultados da candidatura mais recente para a mais antiga. "
-            + "Cada resultado traz id, vaga (sem descrição e sem faixa salarial), requisitos e status; "
-            + "para a descrição, a faixa salarial e as etapas, use get_job_application.";
+            + "Cada resultado traz id, vaga (sem descrição e sem faixa salarial), requisitos, situação, status, "
+            + "quem precisa agir (waitingFor: ME, COMPANY ou NOTHING) e a data da última atividade; "
+            + "para a descrição, a faixa salarial, as observações e as etapas, use get_job_application.";
 
     static final String GET = "Traz uma candidatura completa: vaga com descrição e faixa salarial, e processo com "
-            + "etapas. Use quando precisar dos detalhes; para listar ou saber se uma vaga existe, "
-            + "search_job_applications basta.";
+            + "observações, etapas, status, quem precisa agir e última atividade. Use quando precisar dos "
+            + "detalhes; para listar ou saber se uma vaga existe, search_job_applications basta.";
 
     static final String UPDATE = "Altera uma candidatura já registrada e devolve o id. Antes, use "
             + "search_job_applications para obter o id; se mais de uma servir, pergunte ao usuário qual é. Envie "
-            + "só os campos que ele pediu para mudar: os omitidos ficam como estão. Exceções, porque alguns campos "
-            + "andam juntos: descrição nova exige requirements (lista vazia se a vaga não citar nenhum); data do "
-            + "status e situação exigem status (reenvie o atual, se ele não mudou).";
+            + "só os campos que ele pediu para mudar: os omitidos ficam como estão. Exceção: descrição nova exige "
+            + "requirements (lista vazia se a vaga não citar nenhum). Para incluir ou atualizar uma etapa, prefira "
+            + "add_job_application_step e update_job_application_step.";
+
+    static final String ADD_STEP = "Inclui uma etapa no processo de uma candidatura, como \"marcaram a entrevista "
+            + "técnica para dia 3\" ou \"recebi um teste técnico para entregar até sexta\". Devolve o status "
+            + "atualizado. Os nomes das etapas não se repetem numa candidatura: para mudar uma etapa existente, use "
+            + "update_job_application_step.";
+
+    static final String UPDATE_STEP = "Atualiza uma etapa existente, localizada pelo nome, como \"fiz a entrevista "
+            + "técnica hoje, prometeram retorno até segunda\" ou \"passei no fit cultural\". Envie só o que mudou. "
+            + "Devolve o status atualizado. Se o usuário foi reprovado, atualize também a situação com "
+            + "update_job_application.";
 
     static final String DELETE = "Remove definitivamente uma candidatura; não dá para desfazer. Antes, use "
             + "search_job_applications para obter o id, mostre ao usuário a empresa, o cargo e a data, e só "
@@ -81,12 +95,10 @@ final class JobApplicationToolDescriptions {
         static final String PLATFORM = "Por onde se candidatou: Gupy, LinkedIn, e-mail, WhatsApp etc.";
         static final String APPLIED_ON = "Data em que o usuário se candidatou, " + DATE_FORMAT
                 + ". Se ele não disse quando, pergunte";
-        static final String STATUS = JobApplicationToolDescriptions.STATUS
-                + ". Omita no cadastro inicial: o padrão é \"Candidatura enviada\"";
-        static final String STATUS_UPDATED_ON = "Data do status, " + DATE_FORMAT
-                + ". Exige status. Omita para usar a data da candidatura";
-        static final String SITUATION = SITUATIONS + ". Exige status. Omita para ACTIVE";
-        static final String STEPS = JobApplicationToolDescriptions.STEPS;
+        static final String SITUATION = SITUATIONS + ". Omita para ACTIVE";
+        static final String NOTES = JobApplicationToolDescriptions.NOTES;
+        static final String STEPS = JobApplicationToolDescriptions.STEPS
+                + ". Omita no cadastro inicial, se ainda não houve nenhuma";
     }
 
     // ---------- parâmetro da busca
@@ -122,13 +134,43 @@ final class JobApplicationToolDescriptions {
                 + "a lista";
         static final String PLATFORM = "Nova plataforma";
         static final String APPLIED_ON = "Nova data da candidatura, " + DATE_FORMAT;
-        static final String STATUS = JobApplicationToolDescriptions.STATUS
-                + ". Ao mudar, a data do status passa a ser hoje, se não for informada";
-        static final String STATUS_UPDATED_ON = "Data do status, " + DATE_FORMAT
-                + ". Exige status. Informe quando a mudança não foi hoje";
-        static final String SITUATION = SITUATIONS
-                + ". Exige status. Ao mudar, a data do status passa a ser hoje, se não for informada";
+        static final String SITUATION = "Nova situação. " + SITUATIONS;
+        static final String NOTES = JobApplicationToolDescriptions.NOTES + "; texto vazio remove";
         static final String STEPS = JobApplicationToolDescriptions.STEPS
-                + " Substitui a lista inteira; lista vazia remove todas";
+                + ". Substitui a lista inteira; lista vazia remove todas. Para uma etapa só, use as tools de etapa";
+    }
+
+    // ---------- campos de uma etapa (cadastro, edição e tools de etapa)
+
+    static final class Step {
+
+        private Step() {
+        }
+
+        static final String NAME = "Nome da etapa: Triagem, Fit cultural, Entrevista técnica, Teste técnico, "
+                + "Entrevista com líder";
+        static final String STATE = "Estado da etapa: " + STEP_STATES;
+        static final String SCHEDULED_FOR = "Data marcada da etapa, ou prazo de entrega do teste, " + DATE_FORMAT
+                + ". Pode ser futura";
+        static final String COMPLETED_ON = "Data em que a etapa aconteceu ou o teste foi entregue, " + DATE_FORMAT
+                + ". Não pode ser futura";
+        static final String FEEDBACK_EXPECTED_BY = "Data até a qual a empresa prometeu dar retorno, " + DATE_FORMAT;
+        static final String NOTES = "Observações livres sobre a etapa, como o que foi perguntado";
+    }
+
+    // ---------- parâmetros da atualização de etapa
+
+    static final class UpdateStep {
+
+        private UpdateStep() {
+        }
+
+        static final String NAME = "Nome da etapa a atualizar, como foi registrado (acentos e maiúsculas não "
+                + "importam)";
+        static final String STATE = "Novo estado: " + STEP_STATES;
+        static final String SCHEDULED_FOR = "Nova data marcada, ou novo prazo de entrega, " + DATE_FORMAT;
+        static final String COMPLETED_ON = Step.COMPLETED_ON;
+        static final String FEEDBACK_EXPECTED_BY = Step.FEEDBACK_EXPECTED_BY;
+        static final String NOTES = "Novas observações da etapa; texto vazio remove";
     }
 }

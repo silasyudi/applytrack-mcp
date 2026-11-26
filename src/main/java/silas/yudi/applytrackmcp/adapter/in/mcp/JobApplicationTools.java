@@ -5,7 +5,9 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 import silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.Register;
 import silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.Search;
+import silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.Step;
 import silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.Update;
+import silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.UpdateStep;
 import silas.yudi.applytrackmcp.application.service.JobApplicationService;
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
 import silas.yudi.applytrackmcp.domain.model.ContentChange;
@@ -15,16 +17,19 @@ import silas.yudi.applytrackmcp.domain.model.JobPosting;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
-import silas.yudi.applytrackmcp.domain.model.StatusChange;
+import silas.yudi.applytrackmcp.domain.model.StepChange;
+import silas.yudi.applytrackmcp.domain.model.StepState;
 
 import java.util.List;
 
+import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.ADD_STEP;
 import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.DELETE;
 import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.GET;
 import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.ID;
 import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.REGISTER;
 import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.SEARCH;
 import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.UPDATE;
+import static silas.yudi.applytrackmcp.adapter.in.mcp.JobApplicationToolDescriptions.UPDATE_STEP;
 
 /**
  * As tools que a IA chama. Os textos que ela lê estão em {@link JobApplicationToolDescriptions}.
@@ -53,9 +58,8 @@ public class JobApplicationTools {
             @McpToolParam(description = Register.REQUIREMENTS, required = false) List<RequirementInput> requirements,
             @McpToolParam(description = Register.PLATFORM) String platform,
             @McpToolParam(description = Register.APPLIED_ON) String appliedOn,
-            @McpToolParam(description = Register.STATUS, required = false) String status,
-            @McpToolParam(description = Register.STATUS_UPDATED_ON, required = false) String statusUpdatedOn,
             @McpToolParam(description = Register.SITUATION, required = false) Situation situation,
+            @McpToolParam(description = Register.NOTES, required = false) String notes,
             @McpToolParam(description = Register.STEPS, required = false) List<ProcessStepInput> steps
     ) {
         var application = new JobApplication(
@@ -73,9 +77,8 @@ public class JobApplicationTools {
                 ApplicationProcess.start(
                         platform,
                         DateParam.required("appliedOn", appliedOn),
-                        status,
-                        DateParam.optional("statusUpdatedOn", statusUpdatedOn),
                         situation,
+                        notes,
                         toSteps(steps)
                 )
         );
@@ -93,8 +96,8 @@ public class JobApplicationTools {
     @McpTool(name = "get_job_application",
             description = GET,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = false))
-    public JobApplication getJobApplication(@McpToolParam(description = ID) String id) {
-        return service.get(id);
+    public JobApplicationDetail getJobApplication(@McpToolParam(description = ID) String id) {
+        return JobApplicationDetail.from(service.get(id));
     }
 
     @McpTool(name = "update_job_application",
@@ -113,9 +116,8 @@ public class JobApplicationTools {
             @McpToolParam(description = Update.REQUIREMENTS, required = false) List<RequirementInput> requirements,
             @McpToolParam(description = Update.PLATFORM, required = false) String platform,
             @McpToolParam(description = Update.APPLIED_ON, required = false) String appliedOn,
-            @McpToolParam(description = Update.STATUS, required = false) String status,
-            @McpToolParam(description = Update.STATUS_UPDATED_ON, required = false) String statusUpdatedOn,
             @McpToolParam(description = Update.SITUATION, required = false) Situation situation,
+            @McpToolParam(description = Update.NOTES, required = false) String notes,
             @McpToolParam(description = Update.STEPS, required = false) List<ProcessStepInput> steps
     ) {
         var changes = JobApplicationChanges.builder()
@@ -129,10 +131,48 @@ public class JobApplicationTools {
                 .content(ContentChange.of(description, toRequirements(requirements)))
                 .platform(platform)
                 .appliedOn(DateParam.optional("appliedOn", appliedOn))
-                .statusChange(StatusChange.of(status, DateParam.optional("statusUpdatedOn", statusUpdatedOn), situation))
+                .situation(situation)
+                .notes(notes)
                 .steps(toSteps(steps))
                 .build();
         return confirmation("atualizada", service.update(id, changes));
+    }
+
+    @McpTool(name = "add_job_application_step",
+            description = ADD_STEP,
+            annotations = @McpTool.McpAnnotations(destructiveHint = false, openWorldHint = false))
+    public String addJobApplicationStep(
+            @McpToolParam(description = ID) String id,
+            @McpToolParam(description = Step.NAME) String name,
+            @McpToolParam(description = Step.STATE) StepState state,
+            @McpToolParam(description = Step.SCHEDULED_FOR, required = false) String scheduledFor,
+            @McpToolParam(description = Step.COMPLETED_ON, required = false) String completedOn,
+            @McpToolParam(description = Step.FEEDBACK_EXPECTED_BY, required = false) String feedbackExpectedBy,
+            @McpToolParam(description = Step.NOTES, required = false) String notes
+    ) {
+        var step = new ProcessStepInput(name, state, scheduledFor, completedOn, feedbackExpectedBy, notes).toDomain();
+        return stepConfirmation("incluída", service.addStep(id, step));
+    }
+
+    @McpTool(name = "update_job_application_step",
+            description = UPDATE_STEP,
+            annotations = @McpTool.McpAnnotations(idempotentHint = true, openWorldHint = false))
+    public String updateJobApplicationStep(
+            @McpToolParam(description = ID) String id,
+            @McpToolParam(description = UpdateStep.NAME) String name,
+            @McpToolParam(description = UpdateStep.STATE, required = false) StepState state,
+            @McpToolParam(description = UpdateStep.SCHEDULED_FOR, required = false) String scheduledFor,
+            @McpToolParam(description = UpdateStep.COMPLETED_ON, required = false) String completedOn,
+            @McpToolParam(description = UpdateStep.FEEDBACK_EXPECTED_BY, required = false) String feedbackExpectedBy,
+            @McpToolParam(description = UpdateStep.NOTES, required = false) String notes
+    ) {
+        // Em branco não é "manter": a data errada viraria uma confirmação falsa
+        var change = new StepChange(state,
+                DateParam.optional("scheduledFor", scheduledFor),
+                DateParam.optional("completedOn", completedOn),
+                DateParam.optional("feedbackExpectedBy", feedbackExpectedBy),
+                notes);
+        return stepConfirmation("atualizada", service.updateStep(id, name, change));
     }
 
     @McpTool(name = "delete_job_application",
@@ -148,6 +188,15 @@ public class JobApplicationTools {
                 action,
                 application.posting().company(),
                 application.posting().jobTitle(),
+                application.id());
+    }
+
+    private static String stepConfirmation(String action, JobApplication application) {
+        return "Etapa %s: %s - %s. Status: %s (id: %s)".formatted(
+                action,
+                application.posting().company(),
+                application.posting().jobTitle(),
+                application.process().status(),
                 application.id());
     }
 

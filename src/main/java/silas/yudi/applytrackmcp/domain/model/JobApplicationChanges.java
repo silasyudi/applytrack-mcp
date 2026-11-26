@@ -9,7 +9,7 @@ import java.util.stream.Stream;
  * Campos a alterar: primeiro os da vaga, depois os do processo.
  * Nulo mantém o valor atual; texto em branco remove os campos opcionais
  * (cliente final, senioridade, contrato, faixa salarial e link).
- * Campos que andam juntos vêm agrupados: conteúdo (descrição + requisitos) e status (status + data + situação).
+ * Descrição e requisitos andam juntos e vêm agrupados no conteúdo. Observação em branco remove a observação.
  * Steps, quando enviada, substitui a lista inteira; lista vazia remove todas.
  * Para montar, prefira o {@link #builder()}: cada valor fica ao lado do nome do campo.
  */
@@ -23,7 +23,9 @@ public record JobApplicationChanges(String company,
                                     ContentChange content,
                                     String platform,
                                     LocalDate appliedOn,
-                                    StatusChange statusChange,
+                                    Situation situation,
+
+                                    String notes,
                                     List<ProcessStep> steps) {
 
     /** Começa sem nenhuma alteração: só o que for informado muda. */
@@ -42,7 +44,8 @@ public record JobApplicationChanges(String company,
                 content,
                 platform,
                 appliedOn,
-                statusChange,
+                situation,
+                notes,
                 steps
         ).allMatch(Objects::isNull);
     }
@@ -59,7 +62,8 @@ public record JobApplicationChanges(String company,
         private ContentChange content;
         private String platform;
         private LocalDate appliedOn;
-        private StatusChange statusChange;
+        private Situation situation;
+        private String notes;
         private List<ProcessStep> steps;
 
         private Builder() {
@@ -115,8 +119,13 @@ public record JobApplicationChanges(String company,
             return this;
         }
 
-        public Builder statusChange(StatusChange statusChange) {
-            this.statusChange = statusChange;
+        public Builder situation(Situation situation) {
+            this.situation = situation;
+            return this;
+        }
+
+        public Builder notes(String notes) {
+            this.notes = notes;
             return this;
         }
 
@@ -137,7 +146,8 @@ public record JobApplicationChanges(String company,
                     content,
                     platform,
                     appliedOn,
-                    statusChange,
+                    situation,
+                    notes,
                     steps
             );
         }
