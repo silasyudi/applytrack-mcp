@@ -1,11 +1,12 @@
+name: applytrack-mcp
+
 services:
   dynamodb:
     image: amazon/dynamodb-local:3.3.2
-    # -dbPath grava em disco, dentro do volume; sem ele, os dados ficariam só em memória
     command: -jar DynamoDBLocal.jar -sharedDb -dbPath /data
-    user: root # o volume nasce como root, e o usuário padrão da imagem não conseguiria gravar
+    user: root
     ports:
-      - "127.0.0.1:8000:8000" # só esta máquina acessa
+      - "127.0.0.1:8000:8000"
     volumes:
       - dynamodb-data:/data
     restart: unless-stopped

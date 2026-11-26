@@ -8,7 +8,7 @@ spring:
     mcp:
       server:
         name: applytrack-mcp
-        version: 0.0.1
+        version: @project.version@
         stdio: true
 
 # No stdio, o stdout é só do protocolo MCP: os logs vão para arquivo

@@ -10,7 +10,7 @@
     </parent>
     <groupId>silas.yudi</groupId>
     <artifactId>applytrack-mcp</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>applytrack-mcp</name>
     <description>applytrack-mcp</description>
     <url/>
@@ -90,6 +90,7 @@
                 nem quebrar no "mvnw clean". Fica depois do spring-boot-maven-plugin: copia o JAR já executável.
                 Overwrite: o Spring Boot grava o JAR com data fixa (build reproduzível), e sem ele o Ant pularia a cópia.
                 Se o servidor MCP estiver rodando, o Windows trava o arquivo: a cópia só avisa e o build segue.
+                O zip do release sai do JAR de target, que nunca está travado, junto com o compose.yaml.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -107,6 +108,11 @@
                                       tofile="${project.basedir}/dist/${project.artifactId}.jar"
                                       overwrite="true"
                                       failonerror="false"/>
+                                <zip destfile="${project.basedir}/dist/${project.artifactId}-${project.version}.zip">
+                                    <zipfileset file="${project.build.directory}/${project.build.finalName}.jar"
+                                                fullpath="${project.artifactId}.jar"/>
+                                    <zipfileset file="${project.basedir}/compose.yaml" fullpath="compose.yaml"/>
+                                </zip>
                             </target>
                         </configuration>
                     </execution>
