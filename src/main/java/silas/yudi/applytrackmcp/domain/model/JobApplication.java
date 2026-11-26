@@ -10,9 +10,11 @@ public record JobApplication(String id, JobPosting posting, ApplicationProcess p
 
     public JobApplication {
         id = required("id", id);
+
         if (posting == null) {
             throw new IllegalArgumentException("Campo obrigatório: posting");
         }
+
         if (process == null) {
             throw new IllegalArgumentException("Campo obrigatório: process");
         }
@@ -28,21 +30,7 @@ public record JobApplication(String id, JobPosting posting, ApplicationProcess p
         if (changes.isEmpty()) {
             throw new IllegalArgumentException("Informe ao menos um campo para alterar");
         }
-        var content = changes.content();
-        var updatedPosting = new JobPosting(
-                changed(changes.company(), posting.company()),
-                changed(changes.finalClient(), posting.finalClient()),
-                changed(changes.jobTitle(), posting.jobTitle()),
-                changed(changes.seniority(), posting.seniority()),
-                changed(changes.contractType(), posting.contractType()),
-                changed(changes.salaryRange(), posting.salaryRange()),
-                changed(changes.link(), posting.link()),
-                content == null ? posting.description() : changed(content.description(), posting.description()),
-                content == null ? posting.requirements() : changed(content.requirements(), posting.requirements()));
-        return new JobApplication(id, updatedPosting, process.update(changes, today));
-    }
 
-    private static <T> T changed(T newValue, T currentValue) {
-        return newValue == null ? currentValue : newValue;
+        return new JobApplication(id, posting.update(changes), process.update(changes, today));
     }
 }

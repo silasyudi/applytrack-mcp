@@ -30,6 +30,7 @@ public record StatusChange(String status, LocalDate on, Situation situation) {
         if (on != null) {
             throw new IllegalArgumentException(DATE_WITHOUT_STATUS);
         }
+
         if (situation != null) {
             throw new IllegalArgumentException(SITUATION_WITHOUT_STATUS);
         }

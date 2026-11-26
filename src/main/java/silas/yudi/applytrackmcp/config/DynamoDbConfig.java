@@ -29,22 +29,28 @@ public class DynamoDbConfig {
     @Bean
     DynamoDbClient dynamoDbClient(DynamoDbProperties properties) {
         var builder = DynamoDbClient.builder().region(Region.of(properties.region()));
+
         if (properties.endpoint() != null && !properties.endpoint().isBlank()) {
             // O DynamoDB Local exige credenciais, mas aceita qualquer valor
             builder.endpointOverride(URI.create(properties.endpoint()))
                     .credentialsProvider(StaticCredentialsProvider.create(
                             AwsBasicCredentials.create("local", "local")));
         }
+
         return builder.build();
     }
 
     @Bean
     DynamoDbTable<JobApplicationItem> jobApplicationTable(DynamoDbClient client, DynamoDbProperties properties) {
-        var table = DynamoDbEnhancedClient.builder().dynamoDbClient(client).build()
+        var table = DynamoDbEnhancedClient.builder()
+                .dynamoDbClient(client)
+                .build()
                 .table(properties.tableName(), TableSchema.fromBean(JobApplicationItem.class));
+
         if (properties.createTable()) {
             createIfMissing(table);
         }
+
         return table;
     }
 

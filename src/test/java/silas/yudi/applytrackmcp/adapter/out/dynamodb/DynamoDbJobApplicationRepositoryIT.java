@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
 import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
-import silas.yudi.applytrackmcp.domain.model.JobPosting;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
@@ -28,19 +27,24 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
+import static silas.yudi.applytrackmcp.support.JobPostingBuilder.aPosting;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Roda contra o DynamoDB Local no Docker. */
+/**
+ * Roda contra o DynamoDB Local no Docker.
+ */
 class DynamoDbJobApplicationRepositoryIT {
 
     private final JobApplication acme = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
-                        "Acme description", List.of()),
-                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            aPosting().link("https://acme.com/jobs/1").description("Acme description").build(),
+            ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
     private final JobApplication beta = new JobApplication(
-                new JobPosting("Soluções Beta", null, "Pessoa Desenvolvedora Sênior", null, null, null, null,
-                        "Descrição com\nduas linhas e 🚀", List.of()),
-                ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
+            aPosting()
+                    .company("Soluções Beta")
+                    .jobTitle("Pessoa Desenvolvedora Sênior")
+                    .description("Descrição com\nduas linhas e 🚀")
+                    .build(),
+            ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
 
     private DynamoDbClient client;
     private DynamoDbTable<JobApplicationItem> table;
@@ -79,8 +83,12 @@ class DynamoDbJobApplicationRepositoryIT {
         @Test
         void savesAndReadsPostingFields() {
             var application = new JobApplication(
-                    new JobPosting("Acme", "Banco Alfa", "Java Developer", "Sênior", "PJ", "R$ 15.000 a R$ 18.000",
-                            null, "Description", List.of()),
+                    aPosting()
+                            .finalClient("Banco Alfa")
+                            .seniority("Sênior")
+                            .contractType("PJ")
+                            .salaryRange("R$ 15.000 a R$ 18.000")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             repository.save(application);
 
@@ -90,10 +98,12 @@ class DynamoDbJobApplicationRepositoryIT {
         @Test
         void savesAndReadsRequirementsInOrderWithEveryImportanceAndMissingLevel() {
             var withRequirements = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of(
-                            new Requirement("Java", "Avançado", Importance.REQUIRED),
-                            new Requirement("Inglês", "C1", Importance.DESIRABLE),
-                            new Requirement("Node.js", null, Importance.UNSPECIFIED))),
+                    aPosting()
+                            .requirements(List.of(
+                                new Requirement("Java", "Avançado", Importance.REQUIRED),
+                                new Requirement("Inglês", "C1", Importance.DESIRABLE),
+                                new Requirement("Node.js", null, Importance.UNSPECIFIED)))
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             repository.save(withRequirements);
 
@@ -103,12 +113,12 @@ class DynamoDbJobApplicationRepositoryIT {
         @Test
         void savesAndReadsTheWholeProcess() {
             var application = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
+                    aPosting().build(),
                     new ApplicationProcess("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica realizada, aguardando feedback",
                             LocalDate.of(2026, 11, 24), Situation.OFFER, List.of(
-                                    new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
-                                    new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Kafka"),
-                                    new ProcessStep("Entrevista com líder", null, false, null))));
+                            new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
+                            new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Kafka"),
+                            new ProcessStep("Entrevista com líder", null, false, null))));
             repository.save(application);
 
             assertThat(repository.findById(application.id())).contains(application);
@@ -134,8 +144,7 @@ class DynamoDbJobApplicationRepositoryIT {
         @Test
         void doesNotOverwriteAnEqualApplicationWithAnotherId() {
             var sameData = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
-                            "Acme description", List.of()),
+                    aPosting().link("https://acme.com/jobs/1").description("Acme description").build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             repository.save(acme);
             repository.save(sameData);
@@ -146,7 +155,7 @@ class DynamoDbJobApplicationRepositoryIT {
         @Test
         void replacesApplicationWithTheSameIdAndRemovesTheLink() {
             var changed = new JobApplication(acme.id(),
-                    new JobPosting("Acme", null, "Analyst", null, null, null, null, "New description", List.of()),
+                    aPosting().jobTitle("Analyst").description("New description").build(),
                     ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 21)));
             repository.save(acme);
             repository.save(beta);
@@ -177,9 +186,8 @@ class DynamoDbJobApplicationRepositoryIT {
         void readsMoreThanOnePage() {
             var large = IntStream.range(0, 5)
                     .mapToObj(i -> new JobApplication(
-                    new JobPosting("Company " + i, null, "Java Developer", null, null, null, null,
-                            "x".repeat(300_000), List.of()),
-                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))))
+                            aPosting().company("Company " + i).description("x".repeat(300_000)).build(),
+                            ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))))
                     .toList();
             large.forEach(repository::save);
 
@@ -204,7 +212,7 @@ class DynamoDbJobApplicationRepositoryIT {
                             "situation", AttributeValue.fromS("ACTIVE"))))));
 
             assertThat(repository.findAll()).containsExactly(new JobApplication("1",
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
+                    aPosting().build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))));
         }
     }

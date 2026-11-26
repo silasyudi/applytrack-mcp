@@ -6,6 +6,13 @@ final class Fields {
     private Fields() {
     }
 
+    static <T> T required(String field, T value) {
+        if (value == null) {
+            throw new IllegalArgumentException("Campo obrigatório: " + field);
+        }
+        return value;
+    }
+
     static String required(String field, String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("Campo obrigatório: " + field);

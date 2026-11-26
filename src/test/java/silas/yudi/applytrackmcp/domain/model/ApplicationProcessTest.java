@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import static silas.yudi.applytrackmcp.support.JobPostingBuilder.aPosting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -26,8 +27,8 @@ class ApplicationProcessTest {
     void requiresPlatform(String platform) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
-                ApplicationProcess.start(platform, LocalDate.of(2026, 11, 20))))
+                        aPosting().build(),
+                        ApplicationProcess.start(platform, LocalDate.of(2026, 11, 20))))
                 .withMessage("Campo obrigatório: platform");
     }
 
@@ -36,8 +37,8 @@ class ApplicationProcessTest {
     void requiresAppliedOn() {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
-                ApplicationProcess.start("LinkedIn", null)))
+                        aPosting().build(),
+                        ApplicationProcess.start("LinkedIn", null)))
                 .withMessage("Campo obrigatório: appliedOn");
     }
 

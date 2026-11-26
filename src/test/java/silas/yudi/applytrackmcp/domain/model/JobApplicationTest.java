@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import static silas.yudi.applytrackmcp.support.JobPostingBuilder.aPosting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
@@ -30,8 +31,12 @@ class JobApplicationTest {
         @Test
         void keepsDataWithoutSurroundingSpaces() {
             var application = new JobApplication(
-                    new JobPosting(" Acme ", null, " Java Developer ", null, null, null, " https://acme.com/jobs/1 ",
-                            " Full description ", List.of()),
+                    aPosting()
+                            .company(" Acme ")
+                            .jobTitle(" Java Developer ")
+                            .link(" https://acme.com/jobs/1 ")
+                            .description(" Full description ")
+                            .build(),
                     ApplicationProcess.start(" LinkedIn ", LocalDate.of(2026, 11, 20)));
 
             assertThat(application.posting().company()).isEqualTo("Acme");
@@ -56,8 +61,8 @@ class JobApplicationTest {
         void requiresId(String id) {
             assertThatIllegalArgumentException()
                     .isThrownBy(() -> new JobApplication(id,
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
-                    ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                            aPosting().build(),
+                            ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
                     .withMessage("Campo obrigatório: id");
         }
     }
@@ -69,13 +74,22 @@ class JobApplicationTest {
         void updatesAllFieldsAndKeepsId() {
             var original = acme();
 
-            var updated = original.update(new JobApplicationChanges("Beta", null, "Analyst", null, null, null,
-                    "https://beta.com", new ContentChange("New description", List.of()), "Gupy",
-                    LocalDate.of(2026, 11, 21), null, null), TODAY);
+            var updated = original.update(JobApplicationChanges.builder()
+                    .company("Beta")
+                    .jobTitle("Analyst")
+                    .link("https://beta.com")
+                    .content(new ContentChange("New description", List.of()))
+                    .platform("Gupy")
+                    .appliedOn(LocalDate.of(2026, 11, 21))
+                    .build(), TODAY);
 
             assertThat(updated).isEqualTo(new JobApplication(original.id(),
-                    new JobPosting("Beta", null, "Analyst", null, null, null, "https://beta.com", "New description",
-                            List.of()),
+                    aPosting()
+                            .company("Beta")
+                            .jobTitle("Analyst")
+                            .link("https://beta.com")
+                            .description("New description")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 21))));
         }
 
@@ -83,12 +97,10 @@ class JobApplicationTest {
         void keepsFieldsThatAreNotInTheChanges() {
             var original = acme();
 
-            assertThat(original.update(new JobApplicationChanges(null, null, "Analyst", null, null, null, null, null,
-                    null, null, null, null), TODAY))
+            assertThat(original.update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY))
                     .isEqualTo(new JobApplication(original.id(),
-                    new JobPosting("Acme", null, "Analyst", null, null, null, "https://acme.com", "Description",
-                            List.of()),
-                    ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))));
+                            aPosting().jobTitle("Analyst").link("https://acme.com").build(),
+                            ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))));
         }
 
         @ParameterizedTest
@@ -96,20 +108,17 @@ class JobApplicationTest {
         void blankLinkRemovesTheLink(String link) {
             var original = acme();
 
-            assertThat(original.update(new JobApplicationChanges(null, null, null, null, null, null, link, null,
-                    null, null, null, null), TODAY))
+            assertThat(original.update(JobApplicationChanges.builder().link(link).build(), TODAY))
                     .isEqualTo(new JobApplication(original.id(),
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", List.of()),
-                    ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))));
+                            aPosting().build(),
+                            ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))));
         }
 
         @Test
         void addsALinkToAnApplicationWithoutLink() {
-            var withoutLink = acme().update(new JobApplicationChanges(null, null, null, null, null, null, "",
-                    null, null, null, null, null), TODAY);
+            var withoutLink = acme().update(JobApplicationChanges.builder().link("").build(), TODAY);
 
-            var updated = withoutLink.update(new JobApplicationChanges(null, null, null, null, null, null, "https://acme.com/2",
-                    null, null, null, null, null), TODAY);
+            var updated = withoutLink.update(JobApplicationChanges.builder().link("https://acme.com/2").build(), TODAY);
 
             assertThat(updated.posting().link()).isEqualTo("https://acme.com/2");
         }
@@ -117,16 +126,14 @@ class JobApplicationTest {
         @Test
         void updateCannotEraseRequiredField() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> acme().update(new JobApplicationChanges(" ", null, null, null, null, null,
-                            null, null, null, null, null, null), TODAY))
+                    .isThrownBy(() -> acme().update(JobApplicationChanges.builder().company(" ").build(), TODAY))
                     .withMessage("Campo obrigatório: company");
         }
 
         @Test
         void updateRequiresAtLeastOneChange() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> acme().update(new JobApplicationChanges(null, null, null, null, null, null,
-                            null, null, null, null, null, null), TODAY))
+                    .isThrownBy(() -> acme().update(JobApplicationChanges.builder().build(), TODAY))
                     .withMessage("Informe ao menos um campo para alterar");
         }
     }
@@ -139,8 +146,13 @@ class JobApplicationTest {
         void updatesPostingFieldsAndKeepsTheOthers() {
             var updated = acme().update(postingChange("Banco Alfa", "Sênior", "PJ", "R$ 15.000"), TODAY);
 
-            assertThat(updated.posting()).isEqualTo(new JobPosting("Acme", "Banco Alfa", "Java Developer", "Sênior",
-                    "PJ", "R$ 15.000", "https://acme.com", "Description", List.of()));
+            assertThat(updated.posting()).isEqualTo(aPosting()
+                    .finalClient("Banco Alfa")
+                    .seniority("Sênior")
+                    .contractType("PJ")
+                    .salaryRange("R$ 15.000")
+                    .link("https://acme.com")
+                    .build());
             assertThat(updated.process()).isEqualTo(acme().process());
         }
 
@@ -152,8 +164,7 @@ class JobApplicationTest {
 
         @Test
         void omittedPostingFieldsKeepTheirValues() {
-            var updated = contracted().update(new JobApplicationChanges(null, null, "Analyst", null, null, null,
-                    null, null, null, null, null, null), TODAY);
+            var updated = contracted().update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY);
 
             assertThat(updated.posting().contractType()).isEqualTo("CLT");
             assertThat(updated.posting().salaryRange()).isEqualTo("R$ 8.000");
@@ -231,8 +242,7 @@ class JobApplicationTest {
         @Test
         void updateWithoutRequirementsKeepsThem() {
             var updated = withRequirements(JAVA, ENGLISH)
-                    .update(new JobApplicationChanges(null, null, "Analyst", null, null, null, null, null, null,
-                            null, null, null), TODAY);
+                    .update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY);
 
             assertThat(updated.posting().requirements()).containsExactly(JAVA, ENGLISH);
         }
@@ -291,8 +301,7 @@ class JobApplicationTest {
 
         @Test
         void otherChangesKeepStatusAndStatusDate() {
-            var updated = acme().update(new JobApplicationChanges(null, null, "Analyst", null, null, null, null,
-                    null, null, null, null, null), TODAY);
+            var updated = acme().update(JobApplicationChanges.builder().jobTitle("Analyst").build(), TODAY);
 
             assertThat(updated.process()).isEqualTo(acme().process());
         }
@@ -300,8 +309,9 @@ class JobApplicationTest {
         // Corrigir a data da candidatura enquanto o status nunca mudou
         @Test
         void changingAppliedOnMovesStatusDateWhenStatusNeverChanged() {
-            var updated = acme().update(new JobApplicationChanges(null, null, null, null, null, null, null, null,
-                    null, LocalDate.of(2026, 11, 18), null, null), TODAY);
+            var updated = acme().update(JobApplicationChanges.builder()
+                    .appliedOn(LocalDate.of(2026, 11, 18))
+                    .build(), TODAY);
 
             assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 18));
         }
@@ -310,8 +320,9 @@ class JobApplicationTest {
         void changingAppliedOnKeepsStatusDateOfAChangedStatus() {
             var interviewed = acme().update(processChange("Entrevista feita", LocalDate.of(2026, 11, 24), null, null), TODAY);
 
-            var updated = interviewed.update(new JobApplicationChanges(null, null, null, null, null, null, null,
-                    null, null, LocalDate.of(2026, 11, 18), null, null), TODAY);
+            var updated = interviewed.update(JobApplicationChanges.builder()
+                    .appliedOn(LocalDate.of(2026, 11, 18))
+                    .build(), TODAY);
 
             assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 24));
         }
@@ -335,8 +346,9 @@ class JobApplicationTest {
             var interviewed = acme().update(statusChange("Entrevista feita", LocalDate.of(2026, 11, 22), null), TODAY);
 
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> interviewed.update(new JobApplicationChanges(null, null, null, null, null,
-                            null, null, null, null, LocalDate.of(2026, 11, 23), null, null), TODAY))
+                    .isThrownBy(() -> interviewed.update(JobApplicationChanges.builder()
+                            .appliedOn(LocalDate.of(2026, 11, 23))
+                            .build(), TODAY))
                     .withMessage("A data do status não pode ser anterior à candidatura: 2026-11-22");
         }
     }
@@ -376,32 +388,29 @@ class JobApplicationTest {
                     List.of(new ProcessStep("Fit cultural", LocalDate.of(2026, 11, 21), true, null))), TODAY);
 
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> withStep.update(new JobApplicationChanges(null, null, null, null, null, null,
-                            null, null, null, LocalDate.of(2026, 11, 22), null, null), TODAY))
+                    .isThrownBy(() -> withStep.update(JobApplicationChanges.builder()
+                            .appliedOn(LocalDate.of(2026, 11, 22))
+                            .build(), TODAY))
                     .withMessage("A etapa não pode ser anterior à candidatura: Fit cultural (2026-11-21)");
         }
     }
 
     private static JobApplication withRequirements(Requirement... requirements) {
         return new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description",
-                        List.of(requirements)),
+                aPosting().requirements(List.of(requirements)).build(),
                 ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
     }
 
     private static JobApplicationChanges requirementsChange(List<Requirement> requirements) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null,
-                new ContentChange(null, requirements), null, null, null, null);
+        return JobApplicationChanges.builder().content(new ContentChange(null, requirements)).build();
     }
 
     private static JobApplicationChanges statusChange(String status, LocalDate on, Situation situation) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, null,
-                new StatusChange(status, on, situation), null);
+        return JobApplicationChanges.builder().statusChange(new StatusChange(status, on, situation)).build();
     }
 
     private static JobApplicationChanges contentChange(String description, List<Requirement> requirements) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null,
-                new ContentChange(description, requirements), null, null, null, null);
+        return JobApplicationChanges.builder().content(new ContentChange(description, requirements)).build();
     }
 
     private static JobApplication contracted() {
@@ -410,20 +419,25 @@ class JobApplicationTest {
 
     private static JobApplicationChanges postingChange(String finalClient, String seniority, String contractType,
                                                        String salaryRange) {
-        return new JobApplicationChanges(null, finalClient, null, seniority, contractType, salaryRange, null, null,
-                null, null, null, null);
+        return JobApplicationChanges.builder()
+                .finalClient(finalClient)
+                .seniority(seniority)
+                .contractType(contractType)
+                .salaryRange(salaryRange)
+                .build();
     }
 
     private static JobApplicationChanges processChange(String status, LocalDate statusUpdatedOn, Situation situation,
                                                        List<ProcessStep> steps) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, null,
-                StatusChange.of(status, statusUpdatedOn, situation), steps);
+        return JobApplicationChanges.builder()
+                .statusChange(StatusChange.of(status, statusUpdatedOn, situation))
+                .steps(steps)
+                .build();
     }
 
     private static JobApplication acme() {
         return new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com", "Description",
-                        List.of()),
+                aPosting().link("https://acme.com").build(),
                 ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
     }
 }

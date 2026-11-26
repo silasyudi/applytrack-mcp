@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import static silas.yudi.applytrackmcp.support.JobPostingBuilder.aPosting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -27,8 +28,8 @@ class JobPostingTest {
     void requiresCompany(String company) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(
-                new JobPosting(company, null, "Java Developer", null, null, null, null, "Description", List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                        aPosting().company(company).build(),
+                        ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
                 .withMessage("Campo obrigatório: company");
     }
 
@@ -38,8 +39,8 @@ class JobPostingTest {
     void requiresJobTitle(String jobTitle) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, jobTitle, null, null, null, null, "Description", List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                        aPosting().jobTitle(jobTitle).build(),
+                        ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
                 .withMessage("Campo obrigatório: jobTitle");
     }
 
@@ -49,8 +50,8 @@ class JobPostingTest {
     void requiresDescription(String description) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, description, List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                        aPosting().description(description).build(),
+                        ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
                 .withMessage("Campo obrigatório: description");
     }
 
@@ -97,14 +98,14 @@ class JobPostingTest {
     @ValueSource(strings = {"", "   "})
     void linkIsOptional(String link) {
         assertThat(new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, link, "Description", List.of()),
+                aPosting().link(link).build(),
                 ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20))).posting().link()).isNull();
     }
 
     @Test
     void requirementsAreOptional() {
         var application = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", null),
+                aPosting().requirements(null).build(),
                 ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
 
         assertThat(application.posting().requirements()).isEmpty();
@@ -114,7 +115,7 @@ class JobPostingTest {
     void keepsRequirementsInOrderAndProtectedFromOutsideChanges() {
         var requirements = new ArrayList<>(List.of(JAVA, ENGLISH));
         var application = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", requirements),
+                aPosting().requirements(requirements).build(),
                 ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
 
         requirements.add(NODE);
@@ -132,13 +133,17 @@ class JobPostingTest {
 
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Description", requirements),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
+                        aPosting().requirements(requirements).build(),
+                        ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
                 .withMessage("Campo obrigatório: requirement");
     }
 
     private static JobPosting posting(String finalClient, String seniority, String contractType, String salaryRange) {
-        return new JobPosting("Acme", finalClient, "Java Developer", seniority, contractType, salaryRange, null,
-                "Description", List.of());
+        return aPosting()
+                .finalClient(finalClient)
+                .seniority(seniority)
+                .contractType(contractType)
+                .salaryRange(salaryRange)
+                .build();
     }
 }

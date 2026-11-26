@@ -11,27 +11,28 @@ import static silas.yudi.applytrackmcp.domain.model.Fields.required;
  * O que acontece com a candidatura. Platform e status são texto livre.
  * StatusUpdatedOn é a data da última mudança de status ou de situação.
  */
-public record ApplicationProcess(String platform, LocalDate appliedOn, String status, LocalDate statusUpdatedOn,
-                                 Situation situation, List<ProcessStep> steps) {
+public record ApplicationProcess(String platform,
+                                 LocalDate appliedOn,
+                                 String status,
+                                 LocalDate statusUpdatedOn,
+                                 Situation situation,
+                                 List<ProcessStep> steps) {
 
     public static final String DEFAULT_STATUS = "Candidatura enviada";
 
     public ApplicationProcess {
         platform = required("platform", platform);
-        if (appliedOn == null) {
-            throw new IllegalArgumentException("Campo obrigatório: appliedOn");
-        }
+        appliedOn = required("appliedOn", appliedOn);
         status = required("status", status);
-        if (statusUpdatedOn == null) {
-            throw new IllegalArgumentException("Campo obrigatório: statusUpdatedOn");
-        }
-        if (situation == null) {
-            throw new IllegalArgumentException("Campo obrigatório: situation");
-        }
+        statusUpdatedOn = required("statusUpdatedOn", statusUpdatedOn);
+        situation = required("situation", situation);
+
         if (statusUpdatedOn.isBefore(appliedOn)) {
             throw new IllegalArgumentException("A data do status não pode ser anterior à candidatura: " + statusUpdatedOn);
         }
+
         steps = steps == null ? List.of() : copyOf(steps);
+
         for (var step : steps) {
             if (step.date() != null && step.date().isBefore(appliedOn)) {
                 throw new IllegalArgumentException(
@@ -40,12 +41,19 @@ public record ApplicationProcess(String platform, LocalDate appliedOn, String st
         }
     }
 
-    /** Processo novo. Nulos recebem os padrões: status enviado, data da candidatura e ACTIVE. */
-    public static ApplicationProcess start(String platform, LocalDate appliedOn, String status,
-                                           LocalDate statusUpdatedOn, Situation situation, List<ProcessStep> steps) {
+    /**
+     * Processo novo. Nulos recebem os padrões: status enviado, data da candidatura e ACTIVE.
+     */
+    public static ApplicationProcess start(String platform,
+                                           LocalDate appliedOn,
+                                           String status,
+                                           LocalDate statusUpdatedOn,
+                                           Situation situation,
+                                           List<ProcessStep> steps) {
         if (optional(status) == null) {
             StatusChange.requireStatusFor(statusUpdatedOn, situation);
         }
+
         return new ApplicationProcess(
                 platform,
                 appliedOn,
@@ -69,19 +77,31 @@ public record ApplicationProcess(String platform, LocalDate appliedOn, String st
         var newSituation = change == null ? situation : changed(change.situation(), situation);
         var newAppliedOn = changed(changes.appliedOn(), appliedOn);
         var statusChanged = !newStatus.equals(status) || newSituation != situation;
+        LocalDate newStatusDate = getNewStatusDate(change, statusChanged, today, newAppliedOn);
 
-        LocalDate newStatusDate;
+        return new ApplicationProcess(
+                changed(changes.platform(), platform),
+                newAppliedOn,
+                newStatus,
+                newStatusDate,
+                newSituation,
+                changed(changes.steps(), steps));
+    }
+
+    private LocalDate getNewStatusDate(StatusChange change, boolean statusChanged, LocalDate today, LocalDate newAppliedOn) {
         if (change != null && change.on() != null) {
-            newStatusDate = change.on();
-        } else if (statusChanged) {
-            newStatusDate = today;
-        } else if (statusUpdatedOn.equals(appliedOn)) {
-            newStatusDate = newAppliedOn;
-        } else {
-            newStatusDate = statusUpdatedOn;
+            return change.on();
         }
-        return new ApplicationProcess(changed(changes.platform(), platform), newAppliedOn, newStatus, newStatusDate,
-                newSituation, changed(changes.steps(), steps));
+
+        if (statusChanged) {
+            return today;
+        }
+
+        if (statusUpdatedOn.equals(appliedOn)) {
+            return newAppliedOn;
+        }
+
+        return statusUpdatedOn;
     }
 
     private static <T> T changed(T newValue, T currentValue) {

@@ -1,6 +1,7 @@
 package silas.yudi.applytrackmcp.adapter.out.dynamodb;
 
 import silas.yudi.applytrackmcp.domain.model.JobPosting;
+import silas.yudi.applytrackmcp.domain.model.Requirement;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 
 import java.util.List;
@@ -29,13 +30,21 @@ public class JobPostingItem {
         item.setSalaryRange(posting.salaryRange());
         item.setLink(posting.link());
         item.setDescription(posting.description());
-        item.setRequirements(posting.requirements().stream().map(RequirementItem::from).toList());
+        item.setRequirements(toItems(posting.requirements()));
         return item;
     }
 
     JobPosting toDomain() {
-        return new JobPosting(company, finalClient, jobTitle, seniority, contractType, salaryRange, link, description,
-                requirements == null ? List.of() : requirements.stream().map(RequirementItem::toDomain).toList());
+        return new JobPosting(company, finalClient, jobTitle, seniority, contractType, salaryRange, link, description, toRequirements(requirements));
+    }
+
+    private static List<RequirementItem> toItems(List<Requirement> requirements) {
+        return requirements.stream().map(RequirementItem::from).toList();
+    }
+
+    // Item gravado sem a lista: lista vazia
+    private static List<Requirement> toRequirements(List<RequirementItem> items) {
+        return items == null ? List.of() : items.stream().map(RequirementItem::toDomain).toList();
     }
 
     public String getCompany() {

@@ -7,6 +7,7 @@ public record Requirement(String name, String level, Importance importance) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Campo obrigatório: requirement.name");
         }
+
         name = name.strip();
         level = level == null || level.isBlank() ? null : level.strip();
         importance = importance == null ? Importance.UNSPECIFIED : importance;

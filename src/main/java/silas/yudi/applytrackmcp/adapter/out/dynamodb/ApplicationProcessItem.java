@@ -1,13 +1,16 @@
 package silas.yudi.applytrackmcp.adapter.out.dynamodb;
 
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
+import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Situation;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 
 import java.time.LocalDate;
 import java.util.List;
 
-/** O processo, gravado como mapa dentro do item da candidatura. */
+/**
+ * O processo, gravado como mapa dentro do item da candidatura.
+ */
 @DynamoDbBean
 public class ApplicationProcessItem {
 
@@ -25,13 +28,21 @@ public class ApplicationProcessItem {
         item.setStatus(process.status());
         item.setStatusUpdatedOn(process.statusUpdatedOn());
         item.setSituation(process.situation());
-        item.setSteps(process.steps().stream().map(ProcessStepItem::from).toList());
+        item.setSteps(toItems(process.steps()));
         return item;
     }
 
     ApplicationProcess toDomain() {
-        return new ApplicationProcess(platform, appliedOn, status, statusUpdatedOn, situation,
-                steps == null ? List.of() : steps.stream().map(ProcessStepItem::toDomain).toList());
+        return new ApplicationProcess(platform, appliedOn, status, statusUpdatedOn, situation, toSteps(steps));
+    }
+
+    private static List<ProcessStepItem> toItems(List<ProcessStep> steps) {
+        return steps.stream().map(ProcessStepItem::from).toList();
+    }
+
+    // Item gravado sem a lista: lista vazia
+    private static List<ProcessStep> toSteps(List<ProcessStepItem> items) {
+        return items == null ? List.of() : items.stream().map(ProcessStepItem::toDomain).toList();
     }
 
     public String getPlatform() {

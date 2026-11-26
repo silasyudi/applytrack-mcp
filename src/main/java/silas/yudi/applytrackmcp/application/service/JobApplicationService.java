@@ -4,6 +4,7 @@ import silas.yudi.applytrackmcp.application.port.out.JobApplicationRepository;
 import silas.yudi.applytrackmcp.domain.exception.JobApplicationNotFoundException;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
+import silas.yudi.applytrackmcp.domain.model.JobPosting;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 
 import java.text.Normalizer;
@@ -38,14 +39,10 @@ public class JobApplicationService {
      * sem termo, lista tudo. Mais recentes primeiro.
      */
     public List<JobApplication> search(String term) {
-        var normalizedTerm = term == null ? "" : normalize(term);
-        return repository.findAll().stream()
-                .filter(application -> normalize(application.posting().company()).contains(normalizedTerm)
-                        || normalize(application.posting().finalClient()).contains(normalizedTerm)
-                        || normalize(application.posting().jobTitle()).contains(normalizedTerm)
-                        || normalize(application.posting().description()).contains(normalizedTerm)
-                        || application.posting().requirements().stream()
-                                .anyMatch(requirement -> normalize(requirement.name()).contains(normalizedTerm)))
+        var normalizedTerm = normalize(term);
+        return repository.findAll()
+                .stream()
+                .filter(application -> matches(application.posting(), normalizedTerm))
                 .sorted(MOST_RECENT_FIRST)
                 .toList();
     }
@@ -72,12 +69,24 @@ public class JobApplicationService {
         return updated;
     }
 
-    /** Devolve a candidatura removida. */
+    /**
+     * Devolve a candidatura removida.
+     */
     public JobApplication delete(String id) {
         requireId(id);
         var application = find(id);
         repository.deleteById(id);
         return application;
+    }
+
+    private static boolean matches(JobPosting posting, String normalizedTerm) {
+        return normalize(posting.company()).contains(normalizedTerm)
+                || normalize(posting.finalClient()).contains(normalizedTerm)
+                || normalize(posting.jobTitle()).contains(normalizedTerm)
+                || normalize(posting.description()).contains(normalizedTerm)
+                || posting.requirements()
+                .stream()
+                .anyMatch(requirement -> normalize(requirement.name()).contains(normalizedTerm));
     }
 
     private static void requireId(String id) {
@@ -98,10 +107,11 @@ public class JobApplicationService {
 
     private void rejectDoneStepsInTheFuture(List<ProcessStep> steps) {
         var today = LocalDate.now(clock);
+
         for (var step : steps) {
             if (step.done() && step.date() != null && step.date().isAfter(today)) {
-                throw new IllegalArgumentException("Etapa marcada como feita não pode ter data futura: %s (%s)"
-                        .formatted(step.name(), step.date()));
+                throw new IllegalArgumentException(
+                        "Etapa marcada como feita não pode ter data futura: %s (%s)".formatted(step.name(), step.date()));
             }
         }
     }
@@ -111,6 +121,7 @@ public class JobApplicationService {
         if (text == null) {
             return "";
         }
+
         return Normalizer.normalize(text, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .toLowerCase(Locale.ROOT)

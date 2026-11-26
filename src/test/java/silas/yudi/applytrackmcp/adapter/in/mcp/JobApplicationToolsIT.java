@@ -30,7 +30,9 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Sobe o JAR empacotado e conversa com ele por stdio, como o Claude faz. Roda com "mvnw verify". */
+/**
+ * Sobe o JAR empacotado e conversa com ele por stdio, como o Claude faz. Roda com "mvnw verify".
+ */
 class JobApplicationToolsIT {
 
     private static final String REGISTER = "register_job_application";
@@ -39,34 +41,42 @@ class JobApplicationToolsIT {
     private static final String UPDATE = "update_job_application";
     private static final String DELETE = "delete_job_application";
 
-    private static final Map<String, Object> ACME = merge(Map.of(
-            "company", "Acme",
-            "jobTitle", "Java Developer",
-            "description", "Acme description",
-            "platform", "Gupy",
-            "link", "https://acme.com/jobs/1",
-            "appliedOn", "2026-11-19",
-            "requirements", List.of()),
-            Map.of("finalClient", "Banco Alfa", "seniority", "Pleno", "contractType", "CLT",
+    private static final Map<String, Object> ACME = merge(
+            Map.of("company", "Acme",
+                    "jobTitle", "Java Developer",
+                    "description", "Acme description",
+                    "platform", "Gupy",
+                    "link", "https://acme.com/jobs/1",
+                    "appliedOn", "2026-11-19",
+                    "requirements", List.of()),
+            Map.of("finalClient", "Banco Alfa",
+                    "seniority", "Pleno",
+                    "contractType", "CLT",
                     "salaryRange", "R$ 8.000 a R$ 10.000"),
-            Map.of("status", "Candidatura enviada", "statusUpdatedOn", "2026-11-19", "situation", "ACTIVE",
+            Map.of("status", "Candidatura enviada",
+                    "statusUpdatedOn", "2026-11-19",
+                    "situation", "ACTIVE",
                     "steps", List.of()));
 
     // Acentos também provam que o texto sobrevive ao stdio no Windows
-    private static final Map<String, Object> BETA = merge(Map.of(
-            "company", "Soluções Beta",
-            "jobTitle", "Pessoa Desenvolvedora Sênior",
-            "description", "Descrição completa",
-            "platform", "WhatsApp",
-            "link", "https://beta.com/jobs/2",
-            "appliedOn", "2026-11-20",
-            "requirements", List.of(
-                    Map.of("name", "Java", "level", "Avançado", "importance", "REQUIRED"),
-                    Map.of("name", "Inglês", "level", "C1", "importance", "DESIRABLE"))),
-            Map.of("finalClient", "Loja Delta", "seniority", "Sênior", "contractType", "PJ",
+    private static final Map<String, Object> BETA = merge(
+            Map.of("company", "Soluções Beta",
+                    "jobTitle", "Pessoa Desenvolvedora Sênior",
+                    "description", "Descrição completa",
+                    "platform", "WhatsApp",
+                    "link", "https://beta.com/jobs/2",
+                    "appliedOn", "2026-11-20",
+                    "requirements", List.of(
+                            Map.of("name", "Java", "level", "Avançado", "importance", "REQUIRED"),
+                            Map.of("name", "Inglês", "level", "C1", "importance", "DESIRABLE"))),
+            Map.of("finalClient", "Loja Delta",
+                    "seniority", "Sênior",
+                    "contractType", "PJ",
                     "salaryRange", "R$ 15.000"),
-            Map.of("status", "Entrevista técnica realizada, aguardando feedback", "statusUpdatedOn", "2026-11-24",
-                    "situation", "ACTIVE", "steps", List.of(
+            Map.of("status", "Entrevista técnica realizada, aguardando feedback",
+                    "statusUpdatedOn", "2026-11-24",
+                    "situation", "ACTIVE",
+                    "steps", List.of(
                             Map.of("name", "Candidatura", "date", "2026-11-20", "done", true, "notes", "Pelo WhatsApp"),
                             Map.of("name", "Entrevista técnica", "date", "2026-11-24", "done", true, "notes", "Kafka"))));
 
@@ -100,14 +110,19 @@ class JobApplicationToolsIT {
 
         @Test
         void exposesExactlyFiveTools() {
-            assertThat(client.listTools().tools()).extracting(Tool::name)
+            assertThat(client.listTools().tools())
+                    .extracting(Tool::name)
                     .containsExactlyInAnyOrder(REGISTER, SEARCH, GET, UPDATE, DELETE);
         }
 
         @Test
         void marksDeleteAsDestructive() {
-            var delete = client.listTools().tools().stream()
-                    .filter(tool -> tool.name().equals(DELETE)).findFirst().orElseThrow();
+            var delete = client.listTools()
+                    .tools()
+                    .stream()
+                    .filter(tool -> tool.name().equals(DELETE))
+                    .findFirst()
+                    .orElseThrow();
 
             assertThat(delete.annotations().destructiveHint()).isTrue();
             assertThat(delete.annotations().readOnlyHint()).isFalse();
@@ -116,9 +131,13 @@ class JobApplicationToolsIT {
         // Diz ao cliente o que cada tool faz: ler, criar ou alterar. Nenhuma acessa algo fora do banco
         @Test
         void describesTheEffectOfEachTool() {
-            var hints = client.listTools().tools().stream().collect(Collectors.toMap(Tool::name,
-                    tool -> List.of(tool.annotations().readOnlyHint(), tool.annotations().destructiveHint(),
-                            tool.annotations().openWorldHint())));
+            var hints = client.listTools().tools().stream().collect(
+                    Collectors.toMap
+                            (Tool::name,
+                                    tool -> List.of(
+                                            tool.annotations().readOnlyHint(),
+                                            tool.annotations().destructiveHint(),
+                                            tool.annotations().openWorldHint())));
 
             assertThat(hints).containsExactlyInAnyOrderEntriesOf(Map.of(
                     REGISTER, List.of(false, false, false),
@@ -137,8 +156,8 @@ class JobApplicationToolsIT {
             var result = call(REGISTER, BETA);
 
             assertThat(result.isError()).isFalse();
-            assertThat(text(result)).isEqualTo("Candidatura registrada: Soluções Beta - Pessoa Desenvolvedora Sênior (id: "
-                    + idOf("beta") + ")");
+            assertThat(text(result)).isEqualTo(
+                    "Candidatura registrada: Soluções Beta - Pessoa Desenvolvedora Sênior (id: " + idOf("beta") + ")");
         }
 
         @Test
@@ -158,9 +177,11 @@ class JobApplicationToolsIT {
             register(minimal);
 
             var expected = new HashMap<String, Object>(minimal);
+
             for (var key : List.of("finalClient", "seniority", "contractType", "salaryRange")) {
                 expected.put(key, null);
             }
+
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
@@ -208,8 +229,11 @@ class JobApplicationToolsIT {
             register(minimal);
 
             var expected = new HashMap<>(minimal);
-            expected.putAll(Map.of("status", "Candidatura enviada", "statusUpdatedOn", "2026-11-20", "situation", "ACTIVE",
-                    "steps", List.of()));
+            expected.putAll(
+                    Map.of("status", "Candidatura enviada",
+                            "statusUpdatedOn", "2026-11-20",
+                            "situation", "ACTIVE",
+                            "steps", List.of()));
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 
@@ -492,9 +516,10 @@ class JobApplicationToolsIT {
             expected.remove("description");
             expected.remove("steps");
             expected.remove("salaryRange");
-            expected.put("id", found.getFirst().get("id"));
+            var id = (String) found.getFirst().get("id");
+            assertThat(UUID.fromString(id)).hasToString(id); // o id é um UUID válido
+            expected.put("id", id);
             assertThat(found).containsExactly(expected);
-            UUID.fromString((String) found.getFirst().get("id"));
         }
 
         @Test
@@ -554,8 +579,15 @@ class JobApplicationToolsIT {
 
             assertThat(nested).containsOnlyKeys("id", "posting", "process");
             assertThat(asMap(nested.get("posting")))
-                    .containsOnlyKeys("company", "finalClient", "jobTitle", "seniority", "contractType", "salaryRange",
-                            "description", "link", "requirements")
+                    .containsOnlyKeys("company",
+                            "finalClient",
+                            "jobTitle",
+                            "seniority",
+                            "contractType",
+                            "salaryRange",
+                            "description",
+                            "link",
+                            "requirements")
                     .containsEntry("company", "Soluções Beta");
             assertThat(asMap(nested.get("process")))
                     .containsOnlyKeys("platform", "appliedOn", "status", "statusUpdatedOn", "situation", "steps")
@@ -604,16 +636,21 @@ class JobApplicationToolsIT {
             register(BETA);
             var id = idOf("acme");
             Map<String, Object> changed = merge(Map.of(
-                    "company", "Gama Soluções",
-                    "jobTitle", "Analista Sênior",
-                    "description", "Nova descrição",
-                    "platform", "LinkedIn",
-                    "link", "https://gama.com/jobs/3",
-                    "appliedOn", "2026-11-18",
-                    "requirements", List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"))),
-                    Map.of("status", "Candidatura enviada", "statusUpdatedOn", "2026-11-18", "situation", "ACTIVE",
+                            "company", "Gama Soluções",
+                            "jobTitle", "Analista Sênior",
+                            "description", "Nova descrição",
+                            "platform", "LinkedIn",
+                            "link", "https://gama.com/jobs/3",
+                            "appliedOn", "2026-11-18",
+                            "requirements", List.of(
+                                    Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"))),
+                    Map.of("status", "Candidatura enviada",
+                            "statusUpdatedOn", "2026-11-18",
+                            "situation", "ACTIVE",
                             "steps", List.of()),
-                    Map.of("finalClient", "Rede Gama", "seniority", "Especialista", "contractType", "PJ",
+                    Map.of("finalClient", "Rede Gama",
+                            "seniority", "Especialista",
+                            "contractType", "PJ",
                             "salaryRange", "R$ 12.000"));
 
             var arguments = new HashMap<>(changed);
@@ -630,7 +667,9 @@ class JobApplicationToolsIT {
         void updatesAndRemovesPostingFields() throws IOException {
             register(BETA);
 
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "seniority", "Especialista", "finalClient", "",
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"),
+                    "seniority", "Especialista",
+                    "finalClient", "",
                     "salaryRange", "")).isError()).isFalse();
 
             var expected = new HashMap<String, Object>(BETA);
@@ -669,7 +708,8 @@ class JobApplicationToolsIT {
             register(BETA);
             var kafka = List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"));
 
-            assertThat(call(UPDATE, Map.of("id", idOf("beta"), "description", "Mensageria com Kafka",
+            assertThat(call(UPDATE, Map.of("id", idOf("beta"),
+                    "description", "Mensageria com Kafka",
                     "requirements", kafka)).isError()).isFalse();
 
             var expected = new HashMap<>(BETA);
@@ -898,9 +938,11 @@ class JobApplicationToolsIT {
     @SafeVarargs
     private static Map<String, Object> merge(Map<String, Object>... parts) {
         var merged = new HashMap<String, Object>();
+
         for (var part : parts) {
             merged.putAll(part);
         }
+
         return Map.copyOf(merged);
     }
 
@@ -911,12 +953,14 @@ class JobApplicationToolsIT {
     // Busca e lê cada candidatura completa; o id, aleatório, é verificado e retirado da comparação
     private List<Map<String, Object>> searchAndGet(Map<String, Object> arguments) throws IOException {
         var complete = new ArrayList<Map<String, Object>>();
+
         for (var summary : search(arguments)) {
             var id = (String) summary.get("id");
             var application = get(id);
             assertThat(application.remove("id")).isEqualTo(UUID.fromString(id).toString());
             complete.add(application);
         }
+
         return complete;
     }
 
@@ -933,8 +977,7 @@ class JobApplicationToolsIT {
     private Map<String, Object> getNested(String id) throws IOException {
         var result = call(GET, Map.of("id", id));
         assertThat(result.isError()).isFalse();
-        return McpJsonDefaults.getMapper().readValue(text(result), new TypeRef<Map<String, Object>>() {
-        });
+        return McpJsonDefaults.getMapper().readValue(text(result), new TypeRef<Map<String, Object>>() {});
     }
 
     @SuppressWarnings("unchecked")
@@ -951,8 +994,7 @@ class JobApplicationToolsIT {
     private List<Map<String, Object>> search(Map<String, Object> arguments) throws IOException {
         var result = call(SEARCH, arguments);
         assertThat(result.isError()).isFalse();
-        return McpJsonDefaults.getMapper().readValue(text(result), new TypeRef<List<Map<String, Object>>>() {
-        });
+        return McpJsonDefaults.getMapper().readValue(text(result), new TypeRef<List<Map<String, Object>>>() {});
     }
 
     private CallToolResult call(String tool, Map<String, Object> arguments) {

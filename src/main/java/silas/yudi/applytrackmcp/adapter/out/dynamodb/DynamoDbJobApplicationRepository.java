@@ -26,15 +26,15 @@ public class DynamoDbJobApplicationRepository implements JobApplicationRepositor
     @Override
     public Optional<JobApplication> findById(String id) {
         var key = Key.builder().partitionValue(id).build();
-        return Optional.ofNullable(table.getItem(request -> request.key(key).consistentRead(true)))
-                .map(JobApplicationItem::toDomain);
+        return Optional.ofNullable(table.getItem(request -> request.key(key).consistentRead(true))).map(JobApplicationItem::toDomain);
     }
 
     // O scan lê a tabela toda (o SDK busca as páginas); basta para centenas de candidaturas
     @Override
     public List<JobApplication> findAll() {
         return table.scan(request -> request.consistentRead(true))
-                .items().stream()
+                .items()
+                .stream()
                 .map(JobApplicationItem::toDomain)
                 .toList();
     }

@@ -16,7 +16,6 @@ import silas.yudi.applytrackmcp.domain.model.ContentChange;
 import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
-import silas.yudi.applytrackmcp.domain.model.JobPosting;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
@@ -25,6 +24,7 @@ import silas.yudi.applytrackmcp.domain.model.StatusChange;
 import java.time.LocalDate;
 import java.util.List;
 
+import static silas.yudi.applytrackmcp.support.JobPostingBuilder.aPosting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Mockito.verify;
@@ -41,9 +41,9 @@ class JobApplicationToolsTest {
     private JobApplicationTools tools;
 
     private final JobApplication acme = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
-                        "Full description", List.of()),
-                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            aPosting().link("https://acme.com/jobs/1").description("Full description").build(),
+            ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20))
+    );
 
     @Nested
     class Register {
@@ -67,8 +67,12 @@ class JobApplicationToolsTest {
 
             var registered = ArgumentCaptor.forClass(JobApplication.class);
             verify(service).register(registered.capture());
-            assertThat(registered.getValue().posting()).isEqualTo(new JobPosting("Acme", "Banco Alfa",
-                    "Java Developer", "Sênior", "PJ", "R$ 15.000", null, "Description", List.of()));
+            assertThat(registered.getValue().posting()).isEqualTo(aPosting()
+                    .finalClient("Banco Alfa")
+                    .seniority("Sênior")
+                    .contractType("PJ")
+                    .salaryRange("R$ 15.000")
+                    .build());
         }
 
         @Test
@@ -109,9 +113,9 @@ class JobApplicationToolsTest {
             verify(service).register(registered.capture());
             assertThat(registered.getValue().process()).isEqualTo(new ApplicationProcess("Gupy", LocalDate.of(2026, 11, 20),
                     "Entrevista técnica realizada, aguardando feedback", LocalDate.of(2026, 11, 24), Situation.ACTIVE, List.of(
-                            new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
-                            new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Perguntaram sobre Kafka"),
-                            new ProcessStep("Entrevista com líder", null, false, null))));
+                    new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null),
+                    new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 24), true, "Perguntaram sobre Kafka"),
+                    new ProcessStep("Entrevista com líder", null, false, null))));
         }
 
         @ParameterizedTest
@@ -192,8 +196,11 @@ class JobApplicationToolsTest {
         @Test
         void returnsSummaryOfAllApplicationsFound() {
             var acmeLabs = new JobApplication(
-                    new JobPosting("Acme Labs", null, "Analyst", null, null, null, null, "Another description",
-                            List.of()),
+                    aPosting()
+                            .company("Acme Labs")
+                            .jobTitle("Analyst")
+                            .description("Another description")
+                            .build(),
                     ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
             when(service.search("acme")).thenReturn(List.of(acme, acmeLabs));
 
@@ -208,8 +215,13 @@ class JobApplicationToolsTest {
 
         @Test
         void summaryIncludesFinalClientSeniorityAndContractButNotSalary() {
-            var posted = new JobApplication(acme.id(), new JobPosting("Acme", "Banco Alfa", "Java Developer",
-                    "Sênior", "PJ", "R$ 15.000", null, "Full description", List.of()),
+            var posted = new JobApplication(acme.id(), aPosting()
+                    .finalClient("Banco Alfa")
+                    .seniority("Sênior")
+                    .contractType("PJ")
+                    .salaryRange("R$ 15.000")
+                    .description("Full description")
+                    .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(service.search("acme")).thenReturn(List.of(posted));
 
@@ -222,8 +234,7 @@ class JobApplicationToolsTest {
         void summaryIncludesRequirements() {
             var requirements = List.of(new Requirement("Java", "Avançado", Importance.REQUIRED));
             var withRequirements = new JobApplication(acme.id(),
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Full description",
-                            requirements),
+                    aPosting().description("Full description").requirements(requirements).build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(service.search("acme")).thenReturn(List.of(withRequirements));
 
@@ -250,12 +261,21 @@ class JobApplicationToolsTest {
         @Test
         void updatesApplicationAndConfirms() {
             var updated = new JobApplication(acme.id(),
-                    new JobPosting("Beta", null, "Analyst", null, null, null, "https://beta.com", "New description",
-                            List.of()),
+                    aPosting()
+                            .company("Beta")
+                            .jobTitle("Analyst")
+                            .link("https://beta.com")
+                            .description("New description")
+                            .build(),
                     ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 21)));
-            when(service.update("id-1", new JobApplicationChanges("Beta", null, "Analyst", null, null, null,
-                    "https://beta.com", new ContentChange("New description", List.of()), "WhatsApp",
-                    LocalDate.of(2026, 11, 21), null, null))).thenReturn(updated);
+            when(service.update("id-1", JobApplicationChanges.builder()
+                    .company("Beta")
+                    .jobTitle("Analyst")
+                    .link("https://beta.com")
+                    .content(new ContentChange("New description", List.of()))
+                    .platform("WhatsApp")
+                    .appliedOn(LocalDate.of(2026, 11, 21))
+                    .build())).thenReturn(updated);
 
             assertThat(tools.updateJobApplication("id-1", "Beta", null, "Analyst", null, null, null,
                     "https://beta.com", "New description", List.of(), "WhatsApp", "2026-11-21", null, null, null, null))
@@ -264,8 +284,7 @@ class JobApplicationToolsTest {
 
         @Test
         void sendsOnlyTheGivenFields() {
-            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, "", null,
-                    "Gupy", null, null, null))).thenReturn(acme);
+            when(service.update("id-1", JobApplicationChanges.builder().link("").platform("Gupy").build())).thenReturn(acme);
 
             assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, "", null, null, "Gupy",
                     null, null, null, null, null))
@@ -274,8 +293,12 @@ class JobApplicationToolsTest {
 
         @Test
         void sendsPostingFieldsToUpdate() {
-            when(service.update("id-1", new JobApplicationChanges(null, "Banco Alfa", null, "Sênior", "PJ", "",
-                    null, null, null, null, null, null))).thenReturn(acme);
+            when(service.update("id-1", JobApplicationChanges.builder()
+                    .finalClient("Banco Alfa")
+                    .seniority("Sênior")
+                    .contractType("PJ")
+                    .salaryRange("")
+                    .build())).thenReturn(acme);
 
             assertThat(tools.updateJobApplication("id-1", null, "Banco Alfa", null, "Sênior", "PJ", "", null, null,
                     null, null, null, null, null, null, null)).isEqualTo("Candidatura atualizada: Acme - Java Developer (id: " + acme.id() + ")");
@@ -284,8 +307,9 @@ class JobApplicationToolsTest {
         @Test
         void sendsRequirementsToUpdate() {
             var requirements = List.of(new Requirement("Kafka", null, Importance.DESIRABLE));
-            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, null,
-                    new ContentChange(null, requirements), null, null, null, null)))
+            when(service.update("id-1", JobApplicationChanges.builder()
+                    .content(new ContentChange(null, requirements))
+                    .build()))
                     .thenReturn(acme);
 
             assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null,
@@ -296,10 +320,10 @@ class JobApplicationToolsTest {
 
         @Test
         void sendsProcessFieldsToUpdate() {
-            when(service.update("id-1", new JobApplicationChanges(null, null, null, null, null, null, null, null,
-                    null, null,
-                    new StatusChange("Reprovado na técnica", LocalDate.of(2026, 11, 24), Situation.REJECTED),
-                    List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 23), true, null)))))
+            when(service.update("id-1", JobApplicationChanges.builder()
+                    .statusChange(new StatusChange("Reprovado na técnica", LocalDate.of(2026, 11, 24), Situation.REJECTED))
+                    .steps(List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 23), true, null)))
+                    .build()))
                     .thenReturn(acme);
 
             assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null, null, null,

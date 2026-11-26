@@ -13,12 +13,11 @@ import silas.yudi.applytrackmcp.application.port.out.JobApplicationRepository;
 import silas.yudi.applytrackmcp.domain.exception.JobApplicationNotFoundException;
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
 import silas.yudi.applytrackmcp.domain.model.ContentChange;
+import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
-import silas.yudi.applytrackmcp.domain.model.JobPosting;
-import silas.yudi.applytrackmcp.domain.model.Requirement;
-import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.ProcessStep;
+import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.StatusChange;
 
 import java.time.Clock;
@@ -28,6 +27,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
+import static silas.yudi.applytrackmcp.support.JobPostingBuilder.aPosting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -55,13 +55,15 @@ class JobApplicationServiceTest {
     }
 
     private final JobApplication acme = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
-                        "Full description", List.of()),
-                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            aPosting().link("https://acme.com/jobs/1").description("Full description").build(),
+            ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
     private final JobApplication solucoes = new JobApplication(
-                new JobPosting("Soluções Beta", null, "Pessoa Desenvolvedora Sênior", null, null, null, null,
-                        "Full description", List.of()),
-                ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
+            aPosting()
+                    .company("Soluções Beta")
+                    .jobTitle("Pessoa Desenvolvedora Sênior")
+                    .description("Full description")
+                    .build(),
+            ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20)));
 
     @Nested
     class Register {
@@ -107,8 +109,7 @@ class JobApplicationServiceTest {
         @Test
         void doesNotRegisterApplicationWithFutureStatusDate() {
             var application = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Full description",
-                            List.of()),
+                    aPosting().description("Full description").build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), "Entrevista marcada",
                             LocalDate.of(2026, 11, 26), null, null));
 
@@ -156,8 +157,11 @@ class JobApplicationServiceTest {
         @ValueSource(strings = {"Soluções Beta", "solucoes", "SOLUÇÕES", " beta "})
         void findsTermOnlyInCompanyIgnoringCaseAndAccents(String term) {
             var inCompany = new JobApplication(
-                    new JobPosting("Soluções Beta", null, "Analista", null, null, null, null,
-                            "Vaga administrativa", List.of()),
+                    aPosting()
+                            .company("Soluções Beta")
+                            .jobTitle("Analista")
+                            .description("Vaga administrativa")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(acme, inCompany));
 
@@ -169,8 +173,12 @@ class JobApplicationServiceTest {
         @ValueSource(strings = {"Banco Alfa", "banco", "ALFA"})
         void findsTermOnlyInFinalClient(String term) {
             var inFinalClient = new JobApplication(
-                    new JobPosting("Gama", "Banco Alfa", "Analista", null, null, null, null, "Vaga administrativa",
-                            List.of()),
+                    aPosting()
+                            .company("Gama")
+                            .finalClient("Banco Alfa")
+                            .jobTitle("Analista")
+                            .description("Vaga administrativa")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(acme, inFinalClient));
 
@@ -181,8 +189,11 @@ class JobApplicationServiceTest {
         @ValueSource(strings = {"senior", "SÊNIOR", "desenvolvedora", " Pessoa Desenvolvedora "})
         void findsTermOnlyInJobTitleIgnoringCaseAndAccents(String term) {
             var inTitle = new JobApplication(
-                    new JobPosting("Gama", null, "Pessoa Desenvolvedora Sênior", null, null, null, null,
-                            "Vaga administrativa", List.of()),
+                    aPosting()
+                            .company("Gama")
+                            .jobTitle("Pessoa Desenvolvedora Sênior")
+                            .description("Vaga administrativa")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(acme, inTitle));
 
@@ -194,8 +205,11 @@ class JobApplicationServiceTest {
         @ValueSource(strings = {"Kafka", "kafka", "microsservicos", "MICROSSERVIÇOS", " Spring Boot "})
         void findsTermOnlyInDescriptionIgnoringCaseAndAccents(String term) {
             var inDescription = new JobApplication(
-                    new JobPosting("Gama", null, "Desenvolvedor de Software Sênior", null, null, null, null,
-                            "Requisitos:\n- Java com Spring Boot\n- Microsserviços e Kafka", List.of()),
+                    aPosting()
+                            .company("Gama")
+                            .jobTitle("Desenvolvedor de Software Sênior")
+                            .description("Requisitos:\n- Java com Spring Boot\n- Microsserviços e Kafka")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(acme, inDescription));
 
@@ -207,10 +221,15 @@ class JobApplicationServiceTest {
         @ValueSource(strings = {"Kafka", "kafka", "SPRING BOOT", " Inglês ", "ingles"})
         void findsTermOnlyInRequirementName(String term) {
             var inRequirements = new JobApplication(
-                    new JobPosting("Gama", null, "Analista", null, null, null, null, "Vaga administrativa", List.of(
-                            new Requirement("Kafka", "Sênior", Importance.REQUIRED),
-                            new Requirement("Spring Boot", null, Importance.DESIRABLE),
-                            new Requirement("Inglês", "C1", Importance.UNSPECIFIED))),
+                    aPosting()
+                            .company("Gama")
+                            .jobTitle("Analista")
+                            .description("Vaga administrativa")
+                            .requirements(List.of(
+                                new Requirement("Kafka", "Sênior", Importance.REQUIRED),
+                                new Requirement("Spring Boot", null, Importance.DESIRABLE),
+                                new Requirement("Inglês", "C1", Importance.UNSPECIFIED)))
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(acme, inRequirements));
 
@@ -220,7 +239,7 @@ class JobApplicationServiceTest {
         @Test
         void returnsOnceAnApplicationThatMatchesInEveryField() {
             var everywhere = new JobApplication(
-                    new JobPosting("Java House", null, "Java Developer", null, null, null, null, "Java 25", List.of()),
+                    aPosting().company("Java House").description("Java 25").build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(everywhere, solucoes));
 
@@ -230,8 +249,11 @@ class JobApplicationServiceTest {
         @Test
         void returnsOnceAnApplicationThatRepeatsTheTermInTheSameField() {
             var repeated = new JobApplication(
-                    new JobPosting("Gama", null, "Analista", null, null, null, null,
-                            "Kafka, Kafka Streams e Kafka Connect", List.of()),
+                    aPosting()
+                            .company("Gama")
+                            .jobTitle("Analista")
+                            .description("Kafka, Kafka Streams e Kafka Connect")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(repeated, acme));
 
@@ -241,9 +263,14 @@ class JobApplicationServiceTest {
         @Test
         void returnsOnceAnApplicationWithTheTermInRequirementsAndDescription() {
             var both = new JobApplication(
-                    new JobPosting("Gama", null, "Analista", null, null, null, null, "Experiência com Kafka", List.of(
-                            new Requirement("Kafka", null, Importance.REQUIRED),
-                            new Requirement("Kafka Streams", null, Importance.DESIRABLE))),
+                    aPosting()
+                            .company("Gama")
+                            .jobTitle("Analista")
+                            .description("Experiência com Kafka")
+                            .requirements(List.of(
+                                new Requirement("Kafka", null, Importance.REQUIRED),
+                                new Requirement("Kafka Streams", null, Importance.DESIRABLE)))
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findAll()).thenReturn(List.of(both, acme));
 
@@ -256,8 +283,14 @@ class JobApplicationServiceTest {
                 "Feita"})
         void doesNotSearchByOtherFields(String term) {
             var detailed = new JobApplication(
-                    new JobPosting("Acme", null, "Java Developer", "Pleno", "CLT", "R$ 9.000", "https://acme.com/jobs/1",
-                            "Full description", List.of(new Requirement("Java", "Avançado", Importance.REQUIRED))),
+                    aPosting()
+                            .seniority("Pleno")
+                            .contractType("CLT")
+                            .salaryRange("R$ 9.000")
+                            .link("https://acme.com/jobs/1")
+                            .description("Full description")
+                            .requirements(List.of(new Requirement("Java", "Avançado", Importance.REQUIRED)))
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), "Entrevista técnica marcada",
                             null, null, List.of(new ProcessStep("Feita a triagem", null, true, "Feita por telefone"))));
             when(repository.findAll()).thenReturn(List.of(detailed));
@@ -309,8 +342,11 @@ class JobApplicationServiceTest {
         @Test
         void updatesAndSavesApplication() {
             var expected = new JobApplication(acme.id(),
-                    new JobPosting("Acme", null, "Analyst", null, null, null, "https://acme.com/jobs/1",
-                            "Full description", List.of()),
+                    aPosting()
+                            .jobTitle("Analyst")
+                            .link("https://acme.com/jobs/1")
+                            .description("Full description")
+                            .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
@@ -322,14 +358,23 @@ class JobApplicationServiceTest {
         @Test
         void updatesAllFieldsAndSaves() {
             var expected = new JobApplication(acme.id(),
-                    new JobPosting("Beta", null, "Analyst", null, null, null, "https://beta.com", "New description",
-                            List.of()),
+                    aPosting()
+                            .company("Beta")
+                            .jobTitle("Analyst")
+                            .link("https://beta.com")
+                            .description("New description")
+                            .build(),
                     ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 21)));
             when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
-            assertThat(service.update(acme.id(), new JobApplicationChanges("Beta", null, "Analyst", null, null, null,
-                    "https://beta.com", new ContentChange("New description", List.of()), "WhatsApp",
-                    LocalDate.of(2026, 11, 21), null, null))).isEqualTo(expected);
+            assertThat(service.update(acme.id(), JobApplicationChanges.builder()
+                    .company("Beta")
+                    .jobTitle("Analyst")
+                    .link("https://beta.com")
+                    .content(new ContentChange("New description", List.of()))
+                    .platform("WhatsApp")
+                    .appliedOn(LocalDate.of(2026, 11, 21))
+                    .build())).isEqualTo(expected);
             verify(repository).save(expected);
             verifyNoMoreInteractions(repository);
         }
@@ -338,8 +383,7 @@ class JobApplicationServiceTest {
         @ValueSource(strings = {"2026-11-24", "2026-11-25"})
         void updatesDateToYesterdayOrToday(LocalDate date) {
             var expected = new JobApplication(acme.id(),
-                    new JobPosting("Acme", null, "Java Developer", null, null, null, "https://acme.com/jobs/1",
-                            "Full description", List.of()),
+                    aPosting().link("https://acme.com/jobs/1").description("Full description").build(),
                     ApplicationProcess.start("Gupy", date));
             when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
@@ -353,8 +397,9 @@ class JobApplicationServiceTest {
         void usesTodayInBrazilWhenStatusChanges() {
             when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
-            var updated = service.update(acme.id(), new JobApplicationChanges(null, null, null, null, null, null,
-                    null, null, null, null, new StatusChange("Entrevista marcada", null, null), null));
+            var updated = service.update(acme.id(), JobApplicationChanges.builder()
+                    .statusChange(new StatusChange("Entrevista marcada", null, null))
+                    .build());
 
             assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 25));
             verify(repository).save(updated);
@@ -365,7 +410,7 @@ class JobApplicationServiceTest {
         void updatesOtherFieldsOfApplicationThatAlreadyHasFutureDate() {
             var wrong = datedOn(LocalDate.of(2099, 1, 1));
             var expected = new JobApplication(wrong.id(),
-                    new JobPosting("Acme", null, "Analyst", null, null, null, null, "Full description", List.of()),
+                    aPosting().jobTitle("Analyst").description("Full description").build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2099, 1, 1)));
             when(repository.findById(wrong.id())).thenReturn(Optional.of(wrong));
 
@@ -399,8 +444,7 @@ class JobApplicationServiceTest {
 
             assertThatIllegalArgumentException()
                     .isThrownBy(() -> service.update(
-                            acme.id(), new JobApplicationChanges(null, null, null, null, null, null, null, null,
-                                    null, null, null, null)))
+                            acme.id(), JobApplicationChanges.builder().build()))
                     .withMessage("Informe ao menos um campo para alterar");
             verifyNoMoreInteractions(repository);
         }
@@ -427,9 +471,9 @@ class JobApplicationServiceTest {
         @Test
         void doesNotUpdateToFutureStatusDate() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> service.update(acme.id(), new JobApplicationChanges(null, null, null, null,
-                            null, null, null, null, null, null,
-                            new StatusChange("Entrevista marcada", LocalDate.of(2026, 11, 26), null), null)))
+                    .isThrownBy(() -> service.update(acme.id(), JobApplicationChanges.builder()
+                            .statusChange(new StatusChange("Entrevista marcada", LocalDate.of(2026, 11, 26), null))
+                            .build()))
                     .withMessage("A data do status não pode ser futura: 2026-11-26");
             verify(repository, never()).save(any());
         }
@@ -437,9 +481,9 @@ class JobApplicationServiceTest {
         @Test
         void doesNotUpdateWithADoneStepInTheFuture() {
             assertThatIllegalArgumentException()
-                    .isThrownBy(() -> service.update(acme.id(), new JobApplicationChanges(null, null, null, null,
-                            null, null, null, null, null, null, null,
-                            List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 26), true, null)))))
+                    .isThrownBy(() -> service.update(acme.id(), JobApplicationChanges.builder()
+                            .steps(List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 26), true, null)))
+                            .build()))
                     .withMessage("Etapa marcada como feita não pode ter data futura: Entrevista técnica (2026-11-26)");
             verify(repository, never()).save(any());
         }
@@ -479,22 +523,21 @@ class JobApplicationServiceTest {
     }
 
     private static JobApplicationChanges dateChange(LocalDate date) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, date, null, null);
+        return JobApplicationChanges.builder().appliedOn(date).build();
     }
 
     private static JobApplication withSteps(ProcessStep... steps) {
-        return new JobApplication(new JobPosting("Acme", null, "Java Developer", null, null, null, null,
-                "Full description", List.of()),
+        return new JobApplication(aPosting().description("Full description").build(),
                 ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), null, null, null, List.of(steps)));
     }
 
     private static JobApplicationChanges titleChange(String jobTitle) {
-        return new JobApplicationChanges(null, null, jobTitle, null, null, null, null, null, null, null, null, null);
+        return JobApplicationChanges.builder().jobTitle(jobTitle).build();
     }
 
     private static JobApplication datedOn(LocalDate date) {
         return new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, null, "Full description", List.of()),
+                aPosting().description("Full description").build(),
                 ApplicationProcess.start("Gupy", date));
     }
 }
