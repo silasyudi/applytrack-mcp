@@ -44,6 +44,8 @@ class McpServerIT {
             "link", "https://acme.com/jobs/1",
             "appliedOn", "2026-11-19",
             "requirements", List.of()),
+            Map.of("finalClient", "Banco Alfa", "seniority", "Pleno", "contractType", "CLT",
+                    "salaryRange", "R$ 8.000 a R$ 10.000"),
             Map.of("status", "Candidatura enviada", "statusUpdatedOn", "2026-11-19", "situation", "ACTIVE",
                     "steps", List.of()));
 
@@ -58,6 +60,8 @@ class McpServerIT {
             "requirements", List.of(
                     Map.of("name", "Java", "level", "Avançado", "importance", "REQUIRED"),
                     Map.of("name", "Inglês", "level", "C1", "importance", "DESIRABLE"))),
+            Map.of("finalClient", "Loja Delta", "seniority", "Sênior", "contractType", "PJ",
+                    "salaryRange", "R$ 15.000"),
             Map.of("status", "Entrevista técnica realizada, aguardando feedback", "statusUpdatedOn", "2026-11-24",
                     "situation", "ACTIVE", "steps", List.of(
                             Map.of("name", "Candidatura", "date", "2026-11-20", "done", true, "notes", "Pelo WhatsApp"),
@@ -256,7 +260,9 @@ class McpServerIT {
                 "appliedOn", "2026-11-18",
                 "requirements", List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"))),
                 Map.of("status", "Candidatura enviada", "statusUpdatedOn", "2026-11-18", "situation", "ACTIVE",
-                        "steps", List.of()));
+                        "steps", List.of()),
+                Map.of("finalClient", "Rede Gama", "seniority", "Especialista", "contractType", "PJ",
+                        "salaryRange", "R$ 12.000"));
 
         var arguments = new HashMap<>(changed);
         arguments.put("id", id);
@@ -393,6 +399,7 @@ class McpServerIT {
         var expected = new HashMap<>(ACME);
         expected.remove("description");
         expected.remove("steps");
+        expected.remove("salaryRange");
         expected.put("id", found.getFirst().get("id"));
         assertThat(found).containsExactly(expected);
         UUID.fromString((String) found.getFirst().get("id"));
@@ -537,7 +544,8 @@ class McpServerIT {
 
         assertThat(nested).containsOnlyKeys("id", "posting", "process");
         assertThat(asMap(nested.get("posting")))
-                .containsOnlyKeys("company", "jobTitle", "description", "link", "requirements")
+                .containsOnlyKeys("company", "finalClient", "jobTitle", "seniority", "contractType", "salaryRange",
+                        "description", "link", "requirements")
                 .containsEntry("company", "Soluções Beta");
         assertThat(asMap(nested.get("process")))
                 .containsOnlyKeys("platform", "appliedOn", "status", "statusUpdatedOn", "situation", "steps")
@@ -757,9 +765,74 @@ class McpServerIT {
         assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
-    private static Map<String, Object> merge(Map<String, Object> first, Map<String, Object> second) {
-        var merged = new HashMap<>(first);
-        merged.putAll(second);
+    // ---------- campos da vaga
+
+    @Test
+    void findsTermOnlyInFinalClient() throws IOException {
+        register(ACME);
+        register(BETA);
+
+        assertThat(searchAndGet(Map.of("term", "delta"))).containsExactly(BETA);
+    }
+
+    @Test
+    void searchSummaryIncludesPostingFieldsButNotSalary() throws IOException {
+        register(BETA);
+
+        assertThat(search(Map.of("term", "beta")).getFirst())
+                .containsEntry("finalClient", "Loja Delta")
+                .containsEntry("seniority", "Sênior")
+                .containsEntry("contractType", "PJ")
+                .doesNotContainKey("salaryRange");
+    }
+
+    @Test
+    void registersApplicationWithoutPostingFields() throws IOException {
+        var minimal = new HashMap<>(BETA);
+        minimal.keySet().removeAll(List.of("finalClient", "seniority", "contractType", "salaryRange"));
+        register(minimal);
+
+        var expected = new HashMap<String, Object>(minimal);
+        for (var key : List.of("finalClient", "seniority", "contractType", "salaryRange")) {
+            expected.put(key, null);
+        }
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void updatesAndRemovesPostingFields() throws IOException {
+        register(BETA);
+
+        assertThat(call(UPDATE, Map.of("id", idOf("beta"), "seniority", "Especialista", "finalClient", "",
+                "salaryRange", "")).isError()).isFalse();
+
+        var expected = new HashMap<String, Object>(BETA);
+        expected.put("seniority", "Especialista");
+        expected.put("finalClient", null);
+        expected.put("salaryRange", null);
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void rejectsSalaryRangeWithoutContractTypeAndChangesNothing() throws IOException {
+        var noContract = new HashMap<>(ACME);
+        noContract.remove("contractType");
+        assertThat(text(call(REGISTER, noContract)).lines().distinct())
+                .containsExactly("Para informar a faixa salarial, informe também o tipo de contrato");
+
+        register(ACME);
+        var removal = call(UPDATE, Map.of("id", idOf("acme"), "contractType", ""));
+        assertThat(text(removal).lines().distinct())
+                .containsExactly("Para informar a faixa salarial, informe também o tipo de contrato");
+        assertThat(searchAndGet(Map.of())).containsExactly(ACME);
+    }
+
+    @SafeVarargs
+    private static Map<String, Object> merge(Map<String, Object>... parts) {
+        var merged = new HashMap<String, Object>();
+        for (var part : parts) {
+            merged.putAll(part);
+        }
         return Map.copyOf(merged);
     }
 

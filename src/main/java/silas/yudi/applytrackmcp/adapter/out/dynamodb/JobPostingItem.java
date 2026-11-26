@@ -10,6 +10,10 @@ import java.util.List;
 public class JobPostingItem {
 
     private String company;
+    private String finalClient;
+    private String seniority;
+    private String contractType;
+    private String salaryRange;
     private String jobTitle;
     private String description;
     private String link;
@@ -18,6 +22,10 @@ public class JobPostingItem {
     static JobPostingItem from(JobPosting posting) {
         var item = new JobPostingItem();
         item.setCompany(posting.company());
+        item.setFinalClient(posting.finalClient());
+        item.setSeniority(posting.seniority());
+        item.setContractType(posting.contractType());
+        item.setSalaryRange(posting.salaryRange());
         item.setJobTitle(posting.jobTitle());
         item.setDescription(posting.description());
         item.setLink(posting.link());
@@ -26,7 +34,7 @@ public class JobPostingItem {
     }
 
     JobPosting toDomain() {
-        return new JobPosting(company, jobTitle, description, link,
+        return new JobPosting(company, finalClient, jobTitle, seniority, contractType, salaryRange, description, link,
                 requirements == null ? List.of() : requirements.stream().map(RequirementItem::toDomain).toList());
     }
 
@@ -68,5 +76,37 @@ public class JobPostingItem {
 
     public void setRequirements(List<RequirementItem> requirements) {
         this.requirements = requirements;
+    }
+
+    public String getFinalClient() {
+        return finalClient;
+    }
+
+    public void setFinalClient(String finalClient) {
+        this.finalClient = finalClient;
+    }
+
+    public String getSeniority() {
+        return seniority;
+    }
+
+    public void setSeniority(String seniority) {
+        this.seniority = seniority;
+    }
+
+    public String getContractType() {
+        return contractType;
+    }
+
+    public void setContractType(String contractType) {
+        this.contractType = contractType;
+    }
+
+    public String getSalaryRange() {
+        return salaryRange;
+    }
+
+    public void setSalaryRange(String salaryRange) {
+        this.salaryRange = salaryRange;
     }
 }

@@ -89,11 +89,12 @@ public class JobApplicationService {
         }
     }
 
-    /** Busca por trecho da empresa, do cargo ou da descrição; sem termo, lista tudo. Mais recentes primeiro. */
+    /** Busca por trecho da empresa, do cliente final, do cargo ou da descrição; sem termo, lista tudo. Mais recentes primeiro. */
     public List<JobApplication> search(String term) {
         var normalizedTerm = term == null ? "" : normalize(term);
         return repository.findAll().stream()
                 .filter(application -> normalize(application.posting().company()).contains(normalizedTerm)
+                        || normalize(application.posting().finalClient()).contains(normalizedTerm)
                         || normalize(application.posting().jobTitle()).contains(normalizedTerm)
                         || normalize(application.posting().description()).contains(normalizedTerm))
                 .sorted(MOST_RECENT_FIRST)
@@ -102,6 +103,9 @@ public class JobApplicationService {
 
     // Ignora acento, caixa e espaços nas pontas
     private static String normalize(String text) {
+        if (text == null) {
+            return "";
+        }
         return Normalizer.normalize(text, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .toLowerCase(Locale.ROOT)

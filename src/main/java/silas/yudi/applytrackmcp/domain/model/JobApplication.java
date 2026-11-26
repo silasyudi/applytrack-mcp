@@ -31,7 +31,11 @@ public record JobApplication(String id, JobPosting posting, ApplicationProcess p
         var content = changes.content();
         var updatedPosting = new JobPosting(
                 changed(changes.company(), posting.company()),
+                changed(changes.finalClient(), posting.finalClient()),
                 changed(changes.jobTitle(), posting.jobTitle()),
+                changed(changes.seniority(), posting.seniority()),
+                changed(changes.contractType(), posting.contractType()),
+                changed(changes.salaryRange(), posting.salaryRange()),
                 content == null ? posting.description() : changed(content.description(), posting.description()),
                 changed(changes.link(), posting.link()),
                 content == null ? posting.requirements() : changed(content.requirements(), posting.requirements()));
