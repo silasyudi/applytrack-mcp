@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "applytrack.dynamodb.create-table=false",
         "logging.file.name=target/tests.log"
 })
-class ApplytrackMcpApplicationTests {
+class ApplytrackMcpApplicationTest {
 
     @Test
     void contextLoads() {

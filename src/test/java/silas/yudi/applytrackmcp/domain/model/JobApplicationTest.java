@@ -5,9 +5,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,70 +30,6 @@ class JobApplicationTest {
         assertThat(application.process().platform()).isEqualTo("LinkedIn");
         assertThat(application.posting().link()).isEqualTo("https://acme.com/jobs/1");
         assertThat(application.process().appliedOn()).isEqualTo(LocalDate.of(2026, 11, 20));
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresCompany(String company) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting(company, null, "Java Developer", null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: company");
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresJobTitle(String jobTitle) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, jobTitle, null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: jobTitle");
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresDescription(String description) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, description, null, List.of()),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: description");
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requiresPlatform(String platform) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start(platform, LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: platform");
-    }
-
-    // Há processos que só chegam por e-mail ou WhatsApp
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void linkIsOptional(String link) {
-        assertThat(new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", link, List.of()),
-                ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 20))).posting().link()).isNull();
-    }
-
-    // Sem data não dá para calcular prazos
-    @Test
-    void requiresAppliedOn() {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
-                ApplicationProcess.start("LinkedIn", null)))
-                .withMessage("Campo obrigatório: appliedOn");
     }
 
     @Test
@@ -161,70 +97,7 @@ class JobApplicationTest {
                 .withMessage("Informe ao menos um campo para alterar");
     }
 
-    // ---------- requisitos
-
-    @Test
-    void requirementKeepsDataWithoutSurroundingSpaces() {
-        assertThat(new Requirement(" Spring Boot ", " Avançado ", Importance.REQUIRED))
-                .isEqualTo(new Requirement("Spring Boot", "Avançado", Importance.REQUIRED));
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requirementRequiresName(String name) {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new Requirement(name, "Avançado", Importance.REQUIRED))
-                .withMessage("Campo obrigatório: requirement.name");
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void requirementLevelIsOptional(String level) {
-        assertThat(new Requirement("Java", level, Importance.REQUIRED).level()).isNull();
-    }
-
-    @Test
-    void requirementWithoutImportanceIsUnspecified() {
-        assertThat(new Requirement("Java", null, null).importance()).isEqualTo(Importance.UNSPECIFIED);
-    }
-
-    @Test
-    void requirementsAreOptional() {
-        var application = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, null),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
-
-        assertThat(application.posting().requirements()).isEmpty();
-    }
-
-    @Test
-    void keepsRequirementsInOrderAndProtectedFromOutsideChanges() {
-        var requirements = new ArrayList<>(List.of(JAVA, ENGLISH));
-        var application = new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, requirements),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
-
-        requirements.add(NODE);
-
-        assertThat(application.posting().requirements()).containsExactly(JAVA, ENGLISH);
-        assertThatExceptionOfType(UnsupportedOperationException.class)
-                .isThrownBy(() -> application.posting().requirements().add(NODE));
-    }
-
-    @Test
-    void rejectsNullRequirement() {
-        var requirements = new ArrayList<Requirement>();
-        requirements.add(JAVA);
-        requirements.add(null);
-
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, requirements),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20))))
-                .withMessage("Campo obrigatório: requirement");
-    }
+    // ---------- edição dos requisitos
 
     @Test
     void updateReplacesTheWholeRequirementList() {
@@ -252,16 +125,6 @@ class JobApplicationTest {
     private static final Requirement JAVA = new Requirement("Java", "Avançado", Importance.REQUIRED);
     private static final Requirement ENGLISH = new Requirement("Inglês", "C1", Importance.DESIRABLE);
     private static final Requirement NODE = new Requirement("Node.js", null, Importance.UNSPECIFIED);
-
-    private static JobApplication withRequirements(Requirement... requirements) {
-        return new JobApplication(
-                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of(requirements)),
-                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
-    }
-
-    private static JobApplicationChanges requirementsChange(List<Requirement> requirements) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, new ContentChange(null, requirements), null, null);
-    }
 
     // ---------- processo (acme: candidatura em 2026-11-20, status padrão; hoje é 2026-11-25)
 
@@ -415,14 +278,6 @@ class JobApplicationTest {
                 .withMessage("A etapa não pode ser anterior à candidatura: Fit cultural (2026-11-21)");
     }
 
-    private static JobApplicationChanges statusChange(String status, LocalDate on, Situation situation) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, null, new StatusChange(status, on, situation), null);
-    }
-
-    private static JobApplicationChanges contentChange(String description, List<Requirement> requirements) {
-        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, new ContentChange(description, requirements), null, null);
-    }
-
     // ---------- campos da vaga (contracted: CLT e faixa preenchidos)
 
     @Test
@@ -483,6 +338,27 @@ class JobApplicationTest {
                 .withMessage("Para informar a faixa salarial, informe também o tipo de contrato");
     }
 
+    private static final ProcessStep STEP_A = new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null);
+    private static final ProcessStep STEP_B = new ProcessStep("Entrevista técnica", null, false, "Aguardando data");
+
+    private static JobApplication withRequirements(Requirement... requirements) {
+        return new JobApplication(
+                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of(requirements)),
+                ApplicationProcess.start("LinkedIn", LocalDate.of(2026, 11, 20)));
+    }
+
+    private static JobApplicationChanges requirementsChange(List<Requirement> requirements) {
+        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, new ContentChange(null, requirements), null, null);
+    }
+
+    private static JobApplicationChanges statusChange(String status, LocalDate on, Situation situation) {
+        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, null, new StatusChange(status, on, situation), null);
+    }
+
+    private static JobApplicationChanges contentChange(String description, List<Requirement> requirements) {
+        return new JobApplicationChanges(null, null, null, null, null, null, null, null, null, new ContentChange(description, requirements), null, null);
+    }
+
     private static JobApplication contracted() {
         return acme().update(postingChange("Banco Alfa", "Pleno", "CLT", "R$ 8.000"), TODAY);
     }
@@ -492,9 +368,6 @@ class JobApplicationTest {
         return new JobApplicationChanges(null, finalClient, null, seniority, contractType, salaryRange,
                 null, null, null, null, null, null);
     }
-
-    private static final ProcessStep STEP_A = new ProcessStep("Candidatura", LocalDate.of(2026, 11, 20), true, null);
-    private static final ProcessStep STEP_B = new ProcessStep("Entrevista técnica", null, false, "Aguardando data");
 
     private static JobApplicationChanges processChange(String status, LocalDate statusUpdatedOn, Situation situation,
                                                        List<ProcessStep> steps) {

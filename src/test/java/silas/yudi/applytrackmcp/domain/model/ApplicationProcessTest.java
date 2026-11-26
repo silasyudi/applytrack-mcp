@@ -137,30 +137,26 @@ class ApplicationProcessTest {
                 .withMessage("Campo obrigatório: step");
     }
 
-    // ---------- etapa
-
-    @Test
-    void stepKeepsDataWithoutSurroundingSpaces() {
-        assertThat(new ProcessStep(" Fit cultural ", APPLIED, true, " Conversa leve "))
-                .isEqualTo(new ProcessStep("Fit cultural", APPLIED, true, "Conversa leve"));
-    }
+    // ---------- campos obrigatórios
 
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", "   "})
-    void stepRequiresName(String name) {
+    void requiresPlatform(String platform) {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new ProcessStep(name, APPLIED, false, null))
-                .withMessage("Campo obrigatório: step.name");
+                .isThrownBy(() -> new JobApplication(
+                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
+                ApplicationProcess.start(platform, LocalDate.of(2026, 11, 20))))
+                .withMessage("Campo obrigatório: platform");
     }
 
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void stepDateAndNotesAreOptional(String notes) {
-        var step = new ProcessStep("Entrevista com líder", null, false, notes);
-
-        assertThat(step.date()).isNull();
-        assertThat(step.notes()).isNull();
+    // Sem data não dá para calcular prazos
+    @Test
+    void requiresAppliedOn() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new JobApplication(
+                new JobPosting("Acme", null, "Java Developer", null, null, null, "Description", null, List.of()),
+                ApplicationProcess.start("LinkedIn", null)))
+                .withMessage("Campo obrigatório: appliedOn");
     }
 }

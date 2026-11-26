@@ -1,4 +1,4 @@
-package silas.yudi.applytrackmcp;
+package silas.yudi.applytrackmcp.support;
 
 import org.testcontainers.containers.GenericContainer;
 

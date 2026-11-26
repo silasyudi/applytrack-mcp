@@ -3,7 +3,7 @@ package silas.yudi.applytrackmcp.adapter.out.dynamodb;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import silas.yudi.applytrackmcp.DynamoDbLocalContainer;
+import silas.yudi.applytrackmcp.support.DynamoDbLocalContainer;
 import silas.yudi.applytrackmcp.domain.model.Importance;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;

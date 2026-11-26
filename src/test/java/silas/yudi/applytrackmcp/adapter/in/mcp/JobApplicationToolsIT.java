@@ -1,4 +1,4 @@
-package silas.yudi.applytrackmcp;
+package silas.yudi.applytrackmcp.adapter.in.mcp;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -13,6 +13,7 @@ import io.modelcontextprotocol.spec.McpSchema.Tool;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import silas.yudi.applytrackmcp.support.DynamoDbLocalContainer;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -28,7 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Sobe o JAR empacotado e conversa com ele por stdio, como o Claude faz. Roda com "mvnw verify". */
-class McpServerIT {
+class JobApplicationToolsIT {
 
     private static final String REGISTER = "register_job_application";
     private static final String SEARCH = "search_job_applications";
