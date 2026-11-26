@@ -648,6 +648,115 @@ class McpServerIT {
         assertThat(searchAndGet(Map.of())).isEmpty();
     }
 
+    // ---------- pares
+
+    @Test
+    void rejectsStatusDateOrSituationWithoutStatusAndChangesNothing() throws IOException {
+        register(BETA);
+        var id = idOf("beta");
+
+        var dateOnly = call(UPDATE, Map.of("id", id, "statusUpdatedOn", "2026-11-25"));
+        var situationOnly = call(UPDATE, Map.of("id", id, "situation", "REJECTED"));
+
+        assertThat(text(dateOnly).lines().distinct())
+                .containsExactly("Para informar a data do status, envie também o status");
+        assertThat(text(situationOnly).lines().distinct())
+                .containsExactly("Para informar a situação, envie também o status");
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+    }
+
+    @Test
+    void changesSituationTogetherWithStatus() throws IOException {
+        register(BETA);
+        var zone = ZoneId.of("America/Sao_Paulo");
+        var before = LocalDate.now(zone).toString();
+
+        assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", "Desisti", "situation", "WITHDRAWN")).isError())
+                .isFalse();
+
+        var after = LocalDate.now(zone).toString();
+        var stored = searchAndGet(Map.of()).getFirst();
+        assertThat(stored).containsEntry("status", "Desisti").containsEntry("situation", "WITHDRAWN");
+        assertThat(stored.get("statusUpdatedOn")).isIn(before, after);
+    }
+
+    @Test
+    void rejectsDescriptionWithoutRequirementsAndChangesNothing() throws IOException {
+        register(BETA);
+
+        var result = call(UPDATE, Map.of("id", idOf("beta"), "description", "Nova descrição"));
+
+        assertThat(text(result).lines().distinct()).containsExactly(
+                "Para informar a descrição, envie também os requisitos (lista vazia se a vaga não citar nenhum)");
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+    }
+
+    @Test
+    void changesDescriptionTogetherWithRequirements() throws IOException {
+        register(BETA);
+        var kafka = List.of(Map.of("name", "Kafka", "level", "Sênior", "importance", "REQUIRED"));
+
+        assertThat(call(UPDATE, Map.of("id", idOf("beta"), "description", "Mensageria com Kafka",
+                "requirements", kafka)).isError()).isFalse();
+
+        var expected = new HashMap<>(BETA);
+        expected.put("description", "Mensageria com Kafka");
+        expected.put("requirements", kafka);
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    @Test
+    void resendingTheSameStatusKeepsTheStatusDate() throws IOException {
+        register(BETA);
+
+        assertThat(call(UPDATE, Map.of("id", idOf("beta"), "status", BETA.get("status"), "situation", "ACTIVE"))
+                .isError()).isFalse();
+
+        assertThat(searchAndGet(Map.of())).containsExactly(BETA);
+    }
+
+    @Test
+    void movingTheApplicationDateMovesAnUnchangedStatusDate() throws IOException {
+        register(ACME);
+
+        assertThat(call(UPDATE, Map.of("id", idOf("acme"), "appliedOn", "2026-11-17")).isError()).isFalse();
+
+        var expected = new HashMap<>(ACME);
+        expected.put("appliedOn", "2026-11-17");
+        expected.put("statusUpdatedOn", "2026-11-17");
+        assertThat(searchAndGet(Map.of())).containsExactly(expected);
+    }
+
+    // ---------- invariantes de etapas
+
+    @Test
+    void rejectsStepBeforeApplicationAndDoneStepInTheFuture() throws IOException {
+        var early = new HashMap<>(ACME);
+        early.put("steps", List.of(Map.of("name", "Triagem", "date", "2026-11-18", "done", true)));
+        var future = new HashMap<>(ACME);
+        future.put("steps", List.of(Map.of("name", "Técnica", "date", "2999-01-01", "done", true)));
+
+        assertThat(text(call(REGISTER, early)).lines().distinct())
+                .containsExactly("A etapa não pode ser anterior à candidatura: Triagem (2026-11-18)");
+        assertThat(text(call(REGISTER, future)).lines().distinct())
+                .containsExactly("Etapa marcada como feita não pode ter data futura: Técnica (2999-01-01)");
+        assertThat(searchAndGet(Map.of())).isEmpty();
+    }
+
+    @Test
+    void rejectsStatusDateBeforeApplicationAndInvalidStatusDate() throws IOException {
+        var before = new HashMap<>(ACME);
+        before.put("statusUpdatedOn", "2026-11-18");
+        var invalid = new HashMap<>(ACME);
+        invalid.put("statusUpdatedOn", "19/11/2026");
+
+        assertThat(text(call(REGISTER, before)).lines().distinct())
+                .containsExactly("A data do status não pode ser anterior à candidatura: 2026-11-18");
+        assertThat(text(call(REGISTER, invalid)).lines().distinct())
+                .containsExactly("Data inválida: 19/11/2026. Use o formato AAAA-MM-DD");
+        assertThat(searchAndGet(Map.of())).isEmpty();
+    }
+
     private static Map<String, Object> merge(Map<String, Object> first, Map<String, Object> second) {
         var merged = new HashMap<>(first);
         merged.putAll(second);

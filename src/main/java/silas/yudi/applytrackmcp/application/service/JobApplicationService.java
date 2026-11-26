@@ -4,6 +4,7 @@ import silas.yudi.applytrackmcp.application.port.out.JobApplicationRepository;
 import silas.yudi.applytrackmcp.domain.exception.JobApplicationNotFoundException;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
+import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 
 import java.text.Normalizer;
 import java.time.Clock;
@@ -28,6 +29,7 @@ public class JobApplicationService {
     public void register(JobApplication application) {
         rejectFuture("A data da candidatura", application.process().appliedOn());
         rejectFuture("A data do status", application.process().statusUpdatedOn());
+        rejectDoneStepsInTheFuture(application.process().steps());
         repository.save(application);
     }
 
@@ -42,8 +44,11 @@ public class JobApplicationService {
         if (changes.appliedOn() != null) {
             rejectFuture("A data da candidatura", changes.appliedOn());
         }
-        if (changes.statusUpdatedOn() != null) {
-            rejectFuture("A data do status", changes.statusUpdatedOn());
+        if (changes.statusChange() != null && changes.statusChange().on() != null) {
+            rejectFuture("A data do status", changes.statusChange().on());
+        }
+        if (changes.steps() != null) {
+            rejectDoneStepsInTheFuture(changes.steps());
         }
         var updated = find(id).update(changes, LocalDate.now(clock));
         repository.save(updated);
@@ -66,6 +71,16 @@ public class JobApplicationService {
 
     private JobApplication find(String id) {
         return repository.findById(id).orElseThrow(() -> new JobApplicationNotFoundException(id));
+    }
+
+    private void rejectDoneStepsInTheFuture(List<ProcessStep> steps) {
+        var today = LocalDate.now(clock);
+        for (var step : steps) {
+            if (step.done() && step.date() != null && step.date().isAfter(today)) {
+                throw new IllegalArgumentException("Etapa marcada como feita não pode ter data futura: %s (%s)"
+                        .formatted(step.name(), step.date()));
+            }
+        }
     }
 
     private void rejectFuture(String what, LocalDate date) {

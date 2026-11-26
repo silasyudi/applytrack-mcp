@@ -4,6 +4,7 @@ import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 import silas.yudi.applytrackmcp.application.service.JobApplicationService;
+import silas.yudi.applytrackmcp.domain.model.ContentChange;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
 import silas.yudi.applytrackmcp.domain.model.JobPosting;
@@ -11,6 +12,7 @@ import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
+import silas.yudi.applytrackmcp.domain.model.StatusChange;
 
 import java.util.List;
 
@@ -87,8 +89,10 @@ public class JobApplicationTools {
             @McpToolParam(description = "Etapas do processo, em ordem: candidatura, fit cultural, entrevista técnica etc. Se enviada, substitui a lista inteira; lista vazia remove todas", required = false) List<ProcessStepInput> steps) {
         var date = DateParam.optional("appliedOn", appliedOn);
         var updated = service.update(
-                id, new JobApplicationChanges(company, jobTitle, description, platform, link, date, toDomain(requirements),
-                status, DateParam.optional("statusUpdatedOn", statusUpdatedOn), situation, toSteps(steps)));
+                id, new JobApplicationChanges(company, jobTitle, platform, link, date,
+                ContentChange.of(description, toDomain(requirements)),
+                StatusChange.of(status, DateParam.optional("statusUpdatedOn", statusUpdatedOn), situation),
+                toSteps(steps)));
         return "Candidatura atualizada: %s - %s".formatted(updated.posting().company(), updated.posting().jobTitle());
     }
 

@@ -52,6 +52,41 @@ class ApplicationProcessTest {
                 .withMessage("Campo obrigatório: status");
     }
 
+    // ---------- pares no cadastro
+
+    @Test
+    void startRejectsStatusDateWithoutStatus() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> ApplicationProcess.start("Gupy", APPLIED, null, LocalDate.of(2026, 11, 22), null, null))
+                .withMessage("Para informar a data do status, envie também o status");
+    }
+
+    @Test
+    void startRejectsSituationWithoutStatus() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> ApplicationProcess.start("Gupy", APPLIED, null, null, Situation.WITHDRAWN, null))
+                .withMessage("Para informar a situação, envie também o status");
+    }
+
+    // ---------- etapas e data da candidatura
+
+    @Test
+    void rejectsStepBeforeApplication() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new ApplicationProcess("Gupy", APPLIED, "Enviada", APPLIED, Situation.ACTIVE,
+                        List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 19), true, null))))
+                .withMessage("A etapa não pode ser anterior à candidatura: Entrevista técnica (2026-11-19)");
+    }
+
+    @Test
+    void acceptsStepOnTheApplicationDayAndStepWithoutDate() {
+        var steps = List.of(new ProcessStep("Candidatura", APPLIED, true, null),
+                new ProcessStep("Entrevista técnica", null, false, null));
+
+        assertThat(new ApplicationProcess("Gupy", APPLIED, "Enviada", APPLIED, Situation.ACTIVE, steps).steps())
+                .isEqualTo(steps);
+    }
+
     @Test
     void requiresStatusDate() {
         assertThatIllegalArgumentException()

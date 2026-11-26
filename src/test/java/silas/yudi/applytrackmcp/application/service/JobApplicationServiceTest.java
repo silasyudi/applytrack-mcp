@@ -10,9 +10,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import silas.yudi.applytrackmcp.application.port.out.JobApplicationRepository;
 import silas.yudi.applytrackmcp.domain.exception.JobApplicationNotFoundException;
+import silas.yudi.applytrackmcp.domain.model.ContentChange;
+import silas.yudi.applytrackmcp.domain.model.StatusChange;
 import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.ApplicationProcess;
 import silas.yudi.applytrackmcp.domain.model.JobPosting;
+import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.JobApplicationChanges;
 
 import java.time.Clock;
@@ -225,7 +228,8 @@ class JobApplicationServiceTest {
 
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> service.update(
-                        acme.id(), new JobApplicationChanges(null, null, null, null, null, null, null, null, null, null, null)))
+                        acme.id(), new JobApplicationChanges(null, null, null, null, null,
+                null, null, null)))
                 .withMessage("Informe ao menos um campo para alterar");
         verifyNoMoreInteractions(repository);
     }
@@ -237,7 +241,8 @@ class JobApplicationServiceTest {
                 ApplicationProcess.start("WhatsApp", LocalDate.of(2026, 11, 21)));
         when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
-        assertThat(service.update(acme.id(), new JobApplicationChanges("Beta", "Analyst", "New description", "WhatsApp", "https://beta.com", LocalDate.of(2026, 11, 21), null, null, null, null, null))).isEqualTo(expected);
+        assertThat(service.update(acme.id(), new JobApplicationChanges("Beta", "Analyst", "WhatsApp", "https://beta.com", LocalDate.of(2026, 11, 21),
+                new ContentChange("New description", List.of()), null, null))).isEqualTo(expected);
         verify(repository).save(expected);
         verifyNoMoreInteractions(repository);
     }
@@ -298,7 +303,8 @@ class JobApplicationServiceTest {
     }
 
     private static JobApplicationChanges dateChange(LocalDate date) {
-        return new JobApplicationChanges(null, null, null, null, null, date, null, null, null, null, null);
+        return new JobApplicationChanges(null, null, null, null, date,
+                null, null, null);
     }
 
     @Test
@@ -346,8 +352,8 @@ class JobApplicationServiceTest {
     @Test
     void doesNotUpdateToFutureStatusDate() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> service.update(acme.id(), new JobApplicationChanges(null, null, null, null, null, null,
-                        null, "Entrevista marcada", LocalDate.of(2026, 11, 26), null, null)))
+                .isThrownBy(() -> service.update(acme.id(), new JobApplicationChanges(null, null, null, null, null,
+                null, new StatusChange("Entrevista marcada", LocalDate.of(2026, 11, 26), null), null)))
                 .withMessage("A data do status não pode ser futura: 2026-11-26");
         verify(repository, never()).save(any());
     }
@@ -357,15 +363,51 @@ class JobApplicationServiceTest {
     void usesTodayInBrazilWhenStatusChanges() {
         when(repository.findById(acme.id())).thenReturn(Optional.of(acme));
 
-        var updated = service.update(acme.id(), new JobApplicationChanges(null, null, null, null, null, null, null,
-                "Entrevista marcada", null, null, null));
+        var updated = service.update(acme.id(), new JobApplicationChanges(null, null, null, null, null,
+                null, new StatusChange("Entrevista marcada", null, null), null));
 
         assertThat(updated.process().statusUpdatedOn()).isEqualTo(LocalDate.of(2026, 11, 25));
         verify(repository).save(updated);
     }
 
+    // Hoje é 2026-11-25 pelo relógio fixo
+    @Test
+    void doesNotRegisterADoneStepInTheFuture() {
+        var application = withSteps(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 26), true, null));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.register(application))
+                .withMessage("Etapa marcada como feita não pode ter data futura: Entrevista técnica (2026-11-26)");
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void registersDoneStepTodayAndPendingStepInTheFuture() {
+        var application = withSteps(new ProcessStep("Fit cultural", LocalDate.of(2026, 11, 25), true, null),
+                new ProcessStep("Entrevista técnica", LocalDate.of(2026, 12, 3), false, null));
+
+        service.register(application);
+
+        verify(repository).save(application);
+    }
+
+    @Test
+    void doesNotUpdateWithADoneStepInTheFuture() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.update(acme.id(), new JobApplicationChanges(null, null, null, null, null, null,
+                        null, List.of(new ProcessStep("Entrevista técnica", LocalDate.of(2026, 11, 26), true, null)))))
+                .withMessage("Etapa marcada como feita não pode ter data futura: Entrevista técnica (2026-11-26)");
+        verify(repository, never()).save(any());
+    }
+
+    private static JobApplication withSteps(ProcessStep... steps) {
+        return new JobApplication(new JobPosting("Acme", "Java Developer", "Full description", null, List.of()),
+                ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20), null, null, null, List.of(steps)));
+    }
+
     private static JobApplicationChanges titleChange(String jobTitle) {
-        return new JobApplicationChanges(null, jobTitle, null, null, null, null, null, null, null, null, null);
+        return new JobApplicationChanges(null, jobTitle, null, null, null,
+                null, null, null);
     }
 
     private static JobApplication datedOn(LocalDate date) {

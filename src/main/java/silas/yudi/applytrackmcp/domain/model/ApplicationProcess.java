@@ -32,11 +32,20 @@ public record ApplicationProcess(String platform, LocalDate appliedOn, String st
             throw new IllegalArgumentException("A data do status não pode ser anterior à candidatura: " + statusUpdatedOn);
         }
         steps = steps == null ? List.of() : copyOf(steps);
+        for (var step : steps) {
+            if (step.date() != null && step.date().isBefore(appliedOn)) {
+                throw new IllegalArgumentException(
+                        "A etapa não pode ser anterior à candidatura: %s (%s)".formatted(step.name(), step.date()));
+            }
+        }
     }
 
     /** Processo novo. Nulos recebem os padrões: status enviado, data da candidatura e ACTIVE. */
     public static ApplicationProcess start(String platform, LocalDate appliedOn, String status,
                                            LocalDate statusUpdatedOn, Situation situation, List<ProcessStep> steps) {
+        if (optional(status) == null) {
+            StatusChange.requireStatusFor(statusUpdatedOn, situation);
+        }
         return new ApplicationProcess(
                 platform,
                 appliedOn,
@@ -55,14 +64,15 @@ public record ApplicationProcess(String platform, LocalDate appliedOn, String st
      * Enquanto o status nunca mudou (data do status igual à da candidatura), ela acompanha a data da candidatura.
      */
     ApplicationProcess update(JobApplicationChanges changes, LocalDate today) {
-        var newStatus = changes.status() == null ? status : required("status", changes.status());
-        var newSituation = changed(changes.situation(), situation);
+        var change = changes.statusChange();
+        var newStatus = change == null || change.status() == null ? status : required("status", change.status());
+        var newSituation = change == null ? situation : changed(change.situation(), situation);
         var newAppliedOn = changed(changes.appliedOn(), appliedOn);
         var statusChanged = !newStatus.equals(status) || newSituation != situation;
 
         LocalDate newStatusDate;
-        if (changes.statusUpdatedOn() != null) {
-            newStatusDate = changes.statusUpdatedOn();
+        if (change != null && change.on() != null) {
+            newStatusDate = change.on();
         } else if (statusChanged) {
             newStatusDate = today;
         } else if (statusUpdatedOn.equals(appliedOn)) {

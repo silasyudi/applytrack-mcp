@@ -28,12 +28,13 @@ public record JobApplication(String id, JobPosting posting, ApplicationProcess p
         if (changes.isEmpty()) {
             throw new IllegalArgumentException("Informe ao menos um campo para alterar");
         }
+        var content = changes.content();
         var updatedPosting = new JobPosting(
                 changed(changes.company(), posting.company()),
                 changed(changes.jobTitle(), posting.jobTitle()),
-                changed(changes.description(), posting.description()),
+                content == null ? posting.description() : changed(content.description(), posting.description()),
                 changed(changes.link(), posting.link()),
-                changed(changes.requirements(), posting.requirements()));
+                content == null ? posting.requirements() : changed(content.requirements(), posting.requirements()));
         return new JobApplication(id, updatedPosting, process.update(changes, today));
     }
 

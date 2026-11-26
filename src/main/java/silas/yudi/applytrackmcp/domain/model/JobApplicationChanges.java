@@ -7,15 +7,14 @@ import java.util.stream.Stream;
 
 /**
  * Campos a alterar. Nulo mantém o valor atual; link em branco remove o link.
- * Listas (requirements, steps), quando enviadas, substituem a lista inteira; lista vazia remove todos.
+ * Campos que andam juntos vêm agrupados: conteúdo (descrição + requisitos) e status (status + data + situação).
+ * Steps, quando enviada, substitui a lista inteira; lista vazia remove todas.
  */
-public record JobApplicationChanges(String company, String jobTitle, String description, String platform, String link,
-                                    LocalDate appliedOn, List<Requirement> requirements, String status,
-                                    LocalDate statusUpdatedOn, Situation situation, List<ProcessStep> steps) {
+public record JobApplicationChanges(String company, String jobTitle, String platform, String link, LocalDate appliedOn,
+                                    ContentChange content, StatusChange statusChange, List<ProcessStep> steps) {
 
     boolean isEmpty() {
-        return Stream.of(company, jobTitle, description, platform, link, appliedOn, requirements,
-                        status, statusUpdatedOn, situation, steps)
+        return Stream.of(company, jobTitle, platform, link, appliedOn, content, statusChange, steps)
                 .allMatch(Objects::isNull);
     }
 }
