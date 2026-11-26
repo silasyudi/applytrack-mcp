@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -111,17 +112,33 @@ class JobApplicationToolsIT {
             assertThat(delete.annotations().destructiveHint()).isTrue();
             assertThat(delete.annotations().readOnlyHint()).isFalse();
         }
+
+        // Diz ao cliente o que cada tool faz: ler, criar ou alterar. Nenhuma acessa algo fora do banco
+        @Test
+        void describesTheEffectOfEachTool() {
+            var hints = client.listTools().tools().stream().collect(Collectors.toMap(Tool::name,
+                    tool -> List.of(tool.annotations().readOnlyHint(), tool.annotations().destructiveHint(),
+                            tool.annotations().openWorldHint())));
+
+            assertThat(hints).containsExactlyInAnyOrderEntriesOf(Map.of(
+                    REGISTER, List.of(false, false, false),
+                    SEARCH, List.of(true, false, false),
+                    GET, List.of(true, false, false),
+                    UPDATE, List.of(false, true, false),
+                    DELETE, List.of(false, true, false)));
+        }
     }
 
     @Nested
     class Register {
 
         @Test
-        void confirmsRegistration() {
+        void confirmsRegistration() throws IOException {
             var result = call(REGISTER, BETA);
 
             assertThat(result.isError()).isFalse();
-            assertThat(text(result)).isEqualTo("Candidatura registrada: Soluções Beta - Pessoa Desenvolvedora Sênior");
+            assertThat(text(result)).isEqualTo("Candidatura registrada: Soluções Beta - Pessoa Desenvolvedora Sênior (id: "
+                    + idOf("beta") + ")");
         }
 
         @Test
@@ -556,7 +573,7 @@ class JobApplicationToolsIT {
             var result = call(UPDATE, Map.of("id", id, "jobTitle", "Analista Sênior"));
 
             assertThat(result.isError()).isFalse();
-            assertThat(text(result)).isEqualTo("Candidatura atualizada: Acme - Analista Sênior");
+            assertThat(text(result)).isEqualTo("Candidatura atualizada: Acme - Analista Sênior (id: " + id + ")");
             var expected = new HashMap<>(ACME);
             expected.put("jobTitle", "Analista Sênior");
             assertThat(searchAndGet(Map.of())).containsExactly(BETA, expected);
@@ -586,7 +603,7 @@ class JobApplicationToolsIT {
             var result = call(UPDATE, arguments);
 
             assertThat(result.isError()).isFalse();
-            assertThat(text(result)).isEqualTo("Candidatura atualizada: Gama Soluções - Analista Sênior");
+            assertThat(text(result)).isEqualTo("Candidatura atualizada: Gama Soluções - Analista Sênior (id: " + id + ")");
             assertThat(searchAndGet(Map.of())).containsExactly(BETA, changed);
             assertThat(idOf("gama")).isEqualTo(id);
         }

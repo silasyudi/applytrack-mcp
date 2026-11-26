@@ -57,7 +57,7 @@ class JobApplicationToolsTest {
             var registered = ArgumentCaptor.forClass(JobApplication.class);
             verify(service).register(registered.capture());
             assertThat(registered.getValue()).usingRecursiveComparison().ignoringFields("id").isEqualTo(acme);
-            assertThat(message).isEqualTo("Candidatura registrada: Acme - Java Developer");
+            assertThat(message).isEqualTo("Candidatura registrada: Acme - Java Developer (id: " + registered.getValue().id() + ")");
         }
 
         @Test
@@ -259,7 +259,7 @@ class JobApplicationToolsTest {
 
             assertThat(tools.updateJobApplication("id-1", "Beta", null, "Analyst", null, null, null,
                     "https://beta.com", "New description", List.of(), "WhatsApp", "2026-11-21", null, null, null, null))
-                    .isEqualTo("Candidatura atualizada: Beta - Analyst");
+                    .isEqualTo("Candidatura atualizada: Beta - Analyst (id: " + acme.id() + ")");
         }
 
         @Test
@@ -269,7 +269,7 @@ class JobApplicationToolsTest {
 
             assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, "", null, null, "Gupy",
                     null, null, null, null, null))
-                    .isEqualTo("Candidatura atualizada: Acme - Java Developer");
+                    .isEqualTo("Candidatura atualizada: Acme - Java Developer (id: " + acme.id() + ")");
         }
 
         @Test
@@ -278,7 +278,7 @@ class JobApplicationToolsTest {
                     null, null, null, null, null, null))).thenReturn(acme);
 
             assertThat(tools.updateJobApplication("id-1", null, "Banco Alfa", null, "Sênior", "PJ", "", null, null,
-                    null, null, null, null, null, null, null)).isEqualTo("Candidatura atualizada: Acme - Java Developer");
+                    null, null, null, null, null, null, null)).isEqualTo("Candidatura atualizada: Acme - Java Developer (id: " + acme.id() + ")");
         }
 
         @Test
@@ -291,7 +291,7 @@ class JobApplicationToolsTest {
             assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null,
                     List.of(new RequirementInput("Kafka", " ", Importance.DESIRABLE)), null, null, null, null, null,
                     null))
-                    .isEqualTo("Candidatura atualizada: Acme - Java Developer");
+                    .isEqualTo("Candidatura atualizada: Acme - Java Developer (id: " + acme.id() + ")");
         }
 
         @Test
@@ -305,7 +305,7 @@ class JobApplicationToolsTest {
             assertThat(tools.updateJobApplication("id-1", null, null, null, null, null, null, null, null, null, null,
                     null, "Reprovado na técnica", "2026-11-24", Situation.REJECTED,
                     List.of(new ProcessStepInput("Entrevista técnica", "2026-11-23", true, null))))
-                    .isEqualTo("Candidatura atualizada: Acme - Java Developer");
+                    .isEqualTo("Candidatura atualizada: Acme - Java Developer (id: " + acme.id() + ")");
         }
 
         @Test
