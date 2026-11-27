@@ -8,8 +8,9 @@ import static silas.yudi.applytrackmcp.domain.model.Fields.optional;
 import static silas.yudi.applytrackmcp.domain.model.Fields.required;
 
 /**
- * A vaga como está no anúncio. Cliente final, senioridade, contrato e faixa salarial são texto livre e opcionais.
- * FinalClient é onde se trabalha de fato, quando a vaga é de consultoria ou alocação.
+ * A vaga como está no anúncio. Cliente final, senioridade, contrato, faixa salarial e local são texto livre e
+ * opcionais. FinalClient é onde se trabalha de fato, quando a vaga é de consultoria ou alocação.
+ * Modelo de trabalho e local são independentes: nem todo anúncio diz onde fica a vaga.
  */
 public record JobPosting(String company,
                          String finalClient,
@@ -17,6 +18,8 @@ public record JobPosting(String company,
                          String seniority,
                          String contractType,
                          String salaryRange,
+                         WorkModel workModel,
+                         String location,
                          String link,
                          String description,
                          List<Requirement> requirements) {
@@ -33,6 +36,7 @@ public record JobPosting(String company,
             throw new IllegalArgumentException("Para informar a faixa salarial, informe também o tipo de contrato");
         }
 
+        location = optional(location);
         link = optional(link);
         description = required("description", description);
         requirements = requirements == null ? List.of() : copyOf(requirements);
@@ -48,6 +52,8 @@ public record JobPosting(String company,
                 changed(changes.seniority(), seniority),
                 changed(changes.contractType(), contractType),
                 changed(changes.salaryRange(), salaryRange),
+                changed(changes.workModel(), workModel),
+                changed(changes.location(), location),
                 changed(changes.link(), link),
                 content == null ? description : changed(content.description(), description),
                 content == null ? requirements : content.requirements()

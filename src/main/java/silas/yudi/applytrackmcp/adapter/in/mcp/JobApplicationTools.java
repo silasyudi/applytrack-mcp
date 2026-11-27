@@ -19,6 +19,7 @@ import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
 import silas.yudi.applytrackmcp.domain.model.StepChange;
 import silas.yudi.applytrackmcp.domain.model.StepState;
+import silas.yudi.applytrackmcp.domain.model.WorkModel;
 
 import java.util.List;
 
@@ -53,6 +54,8 @@ public class JobApplicationTools {
             @McpToolParam(description = Register.SENIORITY, required = false) String seniority,
             @McpToolParam(description = Register.CONTRACT_TYPE, required = false) String contractType,
             @McpToolParam(description = Register.SALARY_RANGE, required = false) String salaryRange,
+            @McpToolParam(description = Register.WORK_MODEL, required = false) WorkModel workModel,
+            @McpToolParam(description = Register.LOCATION, required = false) String location,
             @McpToolParam(description = Register.LINK, required = false) String link,
             @McpToolParam(description = Register.DESCRIPTION) String description,
             @McpToolParam(description = Register.REQUIREMENTS, required = false) List<RequirementInput> requirements,
@@ -70,6 +73,8 @@ public class JobApplicationTools {
                         seniority,
                         contractType,
                         salaryRange,
+                        workModel,
+                        location,
                         link,
                         description,
                         toRequirements(requirements)
@@ -111,6 +116,8 @@ public class JobApplicationTools {
             @McpToolParam(description = Update.SENIORITY, required = false) String seniority,
             @McpToolParam(description = Update.CONTRACT_TYPE, required = false) String contractType,
             @McpToolParam(description = Update.SALARY_RANGE, required = false) String salaryRange,
+            @McpToolParam(description = Update.WORK_MODEL, required = false) WorkModel workModel,
+            @McpToolParam(description = Update.LOCATION, required = false) String location,
             @McpToolParam(description = Update.LINK, required = false) String link,
             @McpToolParam(description = Update.DESCRIPTION, required = false) String description,
             @McpToolParam(description = Update.REQUIREMENTS, required = false) List<RequirementInput> requirements,
@@ -127,6 +134,8 @@ public class JobApplicationTools {
                 .seniority(seniority)
                 .contractType(contractType)
                 .salaryRange(salaryRange)
+                .workModel(workModel)
+                .location(location)
                 .link(link)
                 .content(ContentChange.of(description, toRequirements(requirements)))
                 .platform(platform)

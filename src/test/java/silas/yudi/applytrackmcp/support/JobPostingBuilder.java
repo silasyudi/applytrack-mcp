@@ -2,6 +2,7 @@ package silas.yudi.applytrackmcp.support;
 
 import silas.yudi.applytrackmcp.domain.model.JobPosting;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
+import silas.yudi.applytrackmcp.domain.model.WorkModel;
 
 import java.util.List;
 
@@ -17,6 +18,8 @@ public final class JobPostingBuilder {
     private String seniority;
     private String contractType;
     private String salaryRange;
+    private WorkModel workModel;
+    private String location;
     private String link;
     private String description = "Description";
     private List<Requirement> requirements = List.of();
@@ -58,6 +61,16 @@ public final class JobPostingBuilder {
         return this;
     }
 
+    public JobPostingBuilder workModel(WorkModel workModel) {
+        this.workModel = workModel;
+        return this;
+    }
+
+    public JobPostingBuilder location(String location) {
+        this.location = location;
+        return this;
+    }
+
     public JobPostingBuilder link(String link) {
         this.link = link;
         return this;
@@ -81,6 +94,8 @@ public final class JobPostingBuilder {
                 seniority,
                 contractType,
                 salaryRange,
+                workModel,
+                location,
                 link,
                 description,
                 requirements

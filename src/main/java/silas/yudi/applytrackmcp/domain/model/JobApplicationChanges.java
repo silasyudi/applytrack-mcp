@@ -8,7 +8,7 @@ import java.util.stream.Stream;
 /**
  * Campos a alterar: primeiro os da vaga, depois os do processo.
  * Nulo mantém o valor atual; texto em branco remove os campos opcionais
- * (cliente final, senioridade, contrato, faixa salarial e link).
+ * (cliente final, senioridade, contrato, faixa salarial, local e link). O modelo de trabalho só é substituído.
  * Descrição e requisitos andam juntos e vêm agrupados no conteúdo. Observação em branco remove a observação.
  * Steps, quando enviada, substitui a lista inteira; lista vazia remove todas.
  * Para montar, prefira o {@link #builder()}: cada valor fica ao lado do nome do campo.
@@ -19,12 +19,13 @@ public record JobApplicationChanges(String company,
                                     String seniority,
                                     String contractType,
                                     String salaryRange,
+                                    WorkModel workModel,
+                                    String location,
                                     String link,
                                     ContentChange content,
                                     String platform,
                                     LocalDate appliedOn,
                                     Situation situation,
-
                                     String notes,
                                     List<ProcessStep> steps) {
 
@@ -40,6 +41,8 @@ public record JobApplicationChanges(String company,
                 seniority,
                 contractType,
                 salaryRange,
+                workModel,
+                location,
                 link,
                 content,
                 platform,
@@ -58,6 +61,8 @@ public record JobApplicationChanges(String company,
         private String seniority;
         private String contractType;
         private String salaryRange;
+        private WorkModel workModel;
+        private String location;
         private String link;
         private ContentChange content;
         private String platform;
@@ -96,6 +101,16 @@ public record JobApplicationChanges(String company,
 
         public Builder salaryRange(String salaryRange) {
             this.salaryRange = salaryRange;
+            return this;
+        }
+
+        public Builder workModel(WorkModel workModel) {
+            this.workModel = workModel;
+            return this;
+        }
+
+        public Builder location(String location) {
+            this.location = location;
             return this;
         }
 
@@ -142,6 +157,8 @@ public record JobApplicationChanges(String company,
                     seniority,
                     contractType,
                     salaryRange,
+                    workModel,
+                    location,
                     link,
                     content,
                     platform,

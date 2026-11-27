@@ -35,7 +35,7 @@ public class JobApplicationService {
     }
 
     /**
-     * Busca por trecho da empresa, do cliente final, do cargo, da descrição ou do nome de um requisito;
+     * Busca por trecho da empresa, do cliente final, do cargo, do local, da descrição ou do nome de um requisito;
      * sem termo, lista tudo. Mais recentes primeiro.
      */
     public List<JobApplication> search(String term) {
@@ -96,6 +96,7 @@ public class JobApplicationService {
         return normalize(posting.company()).contains(normalizedTerm)
                 || normalize(posting.finalClient()).contains(normalizedTerm)
                 || normalize(posting.jobTitle()).contains(normalizedTerm)
+                || normalize(posting.location()).contains(normalizedTerm)
                 || normalize(posting.description()).contains(normalizedTerm)
                 || posting.requirements()
                 .stream()

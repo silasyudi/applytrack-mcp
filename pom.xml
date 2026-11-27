@@ -96,7 +96,8 @@
                 nem quebrar no "mvnw clean". Fica depois do spring-boot-maven-plugin: copia o JAR já executável.
                 Overwrite: o Spring Boot grava o JAR com data fixa (build reproduzível), e sem ele o Ant pularia a cópia.
                 Se o servidor MCP estiver rodando, o Windows trava o arquivo: a cópia só avisa e o build segue.
-                O zip do release sai do JAR de target, que nunca está travado, junto com o compose.yaml.
+                O zip do release sai do JAR de target, que nunca está travado, junto com o compose.yaml. Pelo mesmo motivo
+                da data fixa, o zip antigo é apagado antes: o Ant o consideraria atualizado e não o refaria.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -114,6 +115,7 @@
                                       tofile="${project.basedir}/dist/${project.artifactId}.jar"
                                       overwrite="true"
                                       failonerror="false"/>
+                                <delete file="${project.basedir}/dist/${project.artifactId}-${project.version}.zip"/>
                                 <zip destfile="${project.basedir}/dist/${project.artifactId}-${project.version}.zip">
                                     <zipfileset file="${project.build.directory}/${project.build.finalName}.jar"
                                                 fullpath="${project.artifactId}.jar"/>

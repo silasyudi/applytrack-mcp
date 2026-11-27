@@ -52,7 +52,9 @@ class JobApplicationToolsIT {
             Map.of("finalClient", "Banco Alfa",
                     "seniority", "Pleno",
                     "contractType", "CLT",
-                    "salaryRange", "R$ 8.000 a R$ 10.000"),
+                    "salaryRange", "R$ 8.000 a R$ 10.000",
+                    "workModel", "REMOTE",
+                    "location", "Brasil"),
             Map.of("situation", "ACTIVE",
                     "notes", "Indicação do João",
                     "steps", List.of()));
@@ -71,7 +73,9 @@ class JobApplicationToolsIT {
             Map.of("finalClient", "Loja Delta",
                     "seniority", "Sênior",
                     "contractType", "PJ",
-                    "salaryRange", "R$ 15.000"),
+                    "salaryRange", "R$ 15.000",
+                    "workModel", "HYBRID",
+                    "location", "São Paulo, SP"),
             Map.of("situation", "ACTIVE",
                     "notes", "Contato pelo recrutador",
                     "steps", List.of(
@@ -200,12 +204,12 @@ class JobApplicationToolsIT {
         @Test
         void registersApplicationWithoutPostingFields() throws IOException {
             var minimal = new HashMap<>(BETA);
-            minimal.keySet().removeAll(List.of("finalClient", "seniority", "contractType", "salaryRange"));
+            minimal.keySet().removeAll(List.of("finalClient", "seniority", "contractType", "salaryRange", "workModel", "location"));
             register(minimal);
 
             var expected = new HashMap<String, Object>(minimal);
 
-            for (var key : List.of("finalClient", "seniority", "contractType", "salaryRange")) {
+            for (var key : List.of("finalClient", "seniority", "contractType", "salaryRange", "workModel", "location")) {
                 expected.put(key, null);
             }
 
@@ -312,6 +316,15 @@ class JobApplicationToolsIT {
             assertThat(text(removal).lines().distinct())
                     .containsExactly("Para informar a faixa salarial, informe também o tipo de contrato");
             assertThat(searchAndGet(Map.of())).containsExactly(ACME);
+        }
+
+        @Test
+        void rejectsUnknownWorkModelAndRegistersNothing() throws IOException {
+            var invalid = new HashMap<>(ACME);
+            invalid.put("workModel", "HOME_OFFICE");
+
+            assertThat(call(REGISTER, invalid).isError()).isTrue();
+            assertThat(searchAndGet(Map.of())).isEmpty();
         }
 
         // A IA precisa classificar cada requisito, nem que seja como UNSPECIFIED
@@ -470,6 +483,14 @@ class JobApplicationToolsIT {
         }
 
         @Test
+        void findsTermOnlyInLocation() throws IOException {
+            register(ACME);
+            register(BETA);
+
+            assertThat(searchAndGet(Map.of("term", "sao paulo"))).containsExactly(BETA);
+        }
+
+        @Test
         void findsApplicationByTechnologyThatIsOnlyInTheDescription() throws IOException {
             var generic = new HashMap<>(BETA);
             generic.put("description", "Requisitos:\n- Java com Spring Boot\n- Mensageria com Kafka");
@@ -506,13 +527,13 @@ class JobApplicationToolsIT {
             assertThat(searchAndGet(Map.of("term", "unknown"))).isEmpty();
         }
 
-        // Contrato, faixa, link, plataforma, status, observações, etapas e nível dos requisitos ficam fora da busca
+        // Contrato, faixa, modelo de trabalho, link, plataforma, status, observações, etapas e nível dos requisitos
+        // ficam fora da busca
         @Test
         void doesNotFindTermsThatAreOnlyInOtherFields() throws IOException {
             register(BETA);
 
-            for (var term : List.of("pj", "15.000", "jobs/2", "whatsapp", "aguardando", "recrutador", "kafka", "avancado",
-                    "desirable")) {
+            for (var term : List.of("pj", "15.000", "hybrid", "jobs/2", "whatsapp", "aguardando", "recrutador", "kafka", "avancado", "desirable")) {
                 assertThat(searchAndGet(Map.of("term", term))).as(term).isEmpty();
             }
         }
@@ -546,6 +567,8 @@ class JobApplicationToolsIT {
                     .containsEntry("finalClient", "Loja Delta")
                     .containsEntry("seniority", "Sênior")
                     .containsEntry("contractType", "PJ")
+                    .containsEntry("workModel", "HYBRID")
+                    .containsEntry("location", "São Paulo, SP")
                     .doesNotContainKey("salaryRange");
         }
 
@@ -602,6 +625,8 @@ class JobApplicationToolsIT {
                             "seniority",
                             "contractType",
                             "salaryRange",
+                            "workModel",
+                            "location",
                             "description",
                             "link",
                             "requirements")
@@ -679,7 +704,9 @@ class JobApplicationToolsIT {
                     Map.of("finalClient", "Rede Gama",
                             "seniority", "Especialista",
                             "contractType", "PJ",
-                            "salaryRange", "R$ 12.000"));
+                            "salaryRange", "R$ 12.000",
+                            "workModel", "ON_SITE",
+                            "location", "Rio de Janeiro, RJ"));
 
             var arguments = new HashMap<>(changed);
             arguments.put("id", id);
@@ -698,12 +725,16 @@ class JobApplicationToolsIT {
             assertThat(call(UPDATE, Map.of("id", idOf("beta"),
                     "seniority", "Especialista",
                     "finalClient", "",
-                    "salaryRange", "")).isError()).isFalse();
+                    "salaryRange", "",
+                    "workModel", "REMOTE",
+                    "location", "")).isError()).isFalse();
 
             var expected = new HashMap<String, Object>(BETA);
             expected.put("seniority", "Especialista");
             expected.put("finalClient", null);
             expected.put("salaryRange", null);
+            expected.put("workModel", "REMOTE");
+            expected.put("location", null);
             assertThat(searchAndGet(Map.of())).containsExactly(expected);
         }
 

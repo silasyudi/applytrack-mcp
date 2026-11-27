@@ -92,6 +92,31 @@ class JobPostingTest {
                 .withMessage(SALARY_WITHOUT_CONTRACT);
     }
 
+    @Test
+    void keepsWorkModelAndLocationWithoutSurroundingSpaces() {
+        var posting = aPosting().workModel(WorkModel.HYBRID).location(" São Paulo, SP ").build();
+
+        assertThat(posting.workModel()).isEqualTo(WorkModel.HYBRID);
+        assertThat(posting.location()).isEqualTo("São Paulo, SP");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void workModelAndLocationAreOptional(String location) {
+        var posting = aPosting().workModel(null).location(location).build();
+
+        assertThat(posting.workModel()).isNull();
+        assertThat(posting.location()).isNull();
+    }
+
+    // Nem todo anúncio diz onde: exigir a cidade faria a IA inventar uma para cadastrar
+    @Test
+    void locationIsIndependentOfWorkModel() {
+        assertThat(aPosting().workModel(WorkModel.ON_SITE).build().location()).isNull();
+        assertThat(aPosting().location("Brasil").build().workModel()).isNull();
+    }
+
     // Há processos que só chegam por e-mail ou WhatsApp
     @ParameterizedTest
     @NullSource

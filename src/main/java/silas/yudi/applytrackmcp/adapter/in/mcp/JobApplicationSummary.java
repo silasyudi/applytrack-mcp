@@ -4,6 +4,7 @@ import silas.yudi.applytrackmcp.domain.model.JobApplication;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
 import silas.yudi.applytrackmcp.domain.model.WaitingFor;
+import silas.yudi.applytrackmcp.domain.model.WorkModel;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -18,6 +19,8 @@ public record JobApplicationSummary(String id,
                                     String jobTitle,
                                     String seniority,
                                     String contractType,
+                                    WorkModel workModel,
+                                    String location,
                                     String link,
                                     List<Requirement> requirements,
                                     String platform,
@@ -36,6 +39,8 @@ public record JobApplicationSummary(String id,
                 posting.jobTitle(),
                 posting.seniority(),
                 posting.contractType(),
+                posting.workModel(),
+                posting.location(),
                 posting.link(),
                 posting.requirements(),
                 process.platform(),

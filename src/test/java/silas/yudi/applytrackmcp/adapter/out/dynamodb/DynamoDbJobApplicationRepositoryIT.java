@@ -16,6 +16,7 @@ import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.Situation;
 import silas.yudi.applytrackmcp.domain.model.StepState;
+import silas.yudi.applytrackmcp.domain.model.WorkModel;
 import silas.yudi.applytrackmcp.support.DynamoDbLocalContainer;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -95,6 +96,8 @@ class DynamoDbJobApplicationRepositoryIT {
                             .seniority("Sênior")
                             .contractType("PJ")
                             .salaryRange("R$ 15.000 a R$ 18.000")
+                            .workModel(WorkModel.HYBRID)
+                            .location("São Paulo, SP")
                             .build(),
                     ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
             repository.save(application);

@@ -133,7 +133,7 @@ class JobApplicationTest {
         }
     }
 
-    // contracted(): cliente final, senioridade, CLT e faixa salarial preenchidos
+    // contracted(): cliente final, senioridade, CLT e faixa salarial preenchidos; acme() não tem modelo nem local
     @Nested
     class UpdatePostingFields {
 
@@ -197,6 +197,48 @@ class JobApplicationTest {
             assertThatIllegalArgumentException()
                     .isThrownBy(() -> contracted().update(postingChange(null, null, "", null)))
                     .withMessage("Para informar a faixa salarial, informe também o tipo de contrato");
+        }
+
+        @Test
+        void updatesWorkModelAndLocationAndKeepsTheOthers() {
+            var updated = acme().update(JobApplicationChanges.builder()
+                    .workModel(WorkModel.HYBRID)
+                    .location("Campinas, SP")
+                    .build());
+
+            assertThat(updated.posting()).isEqualTo(aPosting()
+                    .workModel(WorkModel.HYBRID)
+                    .location("Campinas, SP")
+                    .link("https://acme.com")
+                    .build());
+        }
+
+        @Test
+        void updatingOnlyTheWorkModelIsAValidChange() {
+            assertThat(acme().update(JobApplicationChanges.builder().workModel(WorkModel.REMOTE).build())
+                    .posting().workModel()).isEqualTo(WorkModel.REMOTE);
+        }
+
+        @Test
+        void omittedWorkModelAndLocationKeepTheirValues() {
+            var hybrid = acme().update(JobApplicationChanges.builder()
+                    .workModel(WorkModel.HYBRID)
+                    .location("Campinas, SP")
+                    .build());
+
+            var updated = hybrid.update(JobApplicationChanges.builder().jobTitle("Analyst").build());
+
+            assertThat(updated.posting().workModel()).isEqualTo(WorkModel.HYBRID);
+            assertThat(updated.posting().location()).isEqualTo("Campinas, SP");
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", "   "})
+        void blankTextRemovesTheLocation(String location) {
+            var withLocation = acme().update(JobApplicationChanges.builder().location("Campinas, SP").build());
+
+            assertThat(withLocation.update(JobApplicationChanges.builder().location(location).build())
+                    .posting().location()).isNull();
         }
     }
 

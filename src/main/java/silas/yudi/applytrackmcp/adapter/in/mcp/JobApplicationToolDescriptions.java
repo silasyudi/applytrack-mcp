@@ -16,6 +16,9 @@ final class JobApplicationToolDescriptions {
     private static final String REQUIREMENTS = "Requisitos citados na descrição: tecnologias, idiomas, "
             + "certificações. Extraia só o que está escrito, sem inventar";
 
+    private static final String WORK_MODELS = "Modelo de trabalho: REMOTE (remoto), HYBRID (híbrido) ou ON_SITE "
+            + "(presencial)";
+
     private static final String SITUATIONS = "Situação geral do processo: ACTIVE (em andamento), OFFER (proposta), "
             + "HIRED (contratado), REJECTED (reprovado), WITHDRAWN (desistiu) ou CLOSED (vaga fechada). Não muda "
             + "sozinha: quando o usuário for reprovado, desistir ou receber proposta, atualize-a";
@@ -41,10 +44,10 @@ final class JobApplicationToolDescriptions {
 
     static final String SEARCH = "Busca candidaturas já registradas, por exemplo para responder \"já me candidatei "
             + "nesta empresa?\" ou \"quais vagas pedem Kafka?\". Procura o termo como trecho na empresa, no "
-            + "cliente final, no cargo, na descrição da vaga e nos nomes dos requisitos, ignorando acentos e "
+            + "cliente final, no cargo, no local de trabalho, na descrição da vaga e nos nomes dos requisitos, ignorando acentos e "
             + "maiúsculas; por ser trecho, \"java\" também encontra \"JavaScript\". Sem termo, lista todas. "
             + "Resultados da candidatura mais recente para a mais antiga. "
-            + "Cada resultado traz id, vaga (sem descrição e sem faixa salarial), requisitos, situação, status, "
+            + "Cada resultado traz id, vaga (sem descrição e sem faixa salarial), com modelo de trabalho e local,, requisitos, situação, status, "
             + "quem precisa agir (waitingFor: ME, COMPANY ou NOTHING) e a data da última atividade; "
             + "para a descrição, a faixa salarial, as observações e as etapas, use get_job_application.";
 
@@ -89,6 +92,10 @@ final class JobApplicationToolDescriptions {
                 + "Obrigatório quando houver faixa salarial";
         static final String SALARY_RANGE = "Faixa salarial anunciada, como está no texto (ex.: R$ 10.000 a "
                 + "R$ 12.000). Exige contractType. Omita se a vaga não citar";
+        static final String WORK_MODEL = WORK_MODELS + ". Omita se a vaga não citar";
+        static final String LOCATION = "Local de trabalho como está na vaga: cidade e estado (ex.: São Paulo, SP) ou "
+                + "restrição de região em vaga remota (ex.: Brasil). Preencha sempre que a vaga informar, "
+                + "principalmente em vagas híbridas e presenciais. Omita se a vaga não citar";
         static final String LINK = "Link da vaga, se houver";
         static final String DESCRIPTION = "Descrição completa da vaga, sem resumir";
         static final String REQUIREMENTS = JobApplicationToolDescriptions.REQUIREMENTS;
@@ -108,8 +115,8 @@ final class JobApplicationToolDescriptions {
         private Search() {
         }
 
-        static final String TERM = "Um único trecho a procurar na empresa, no cliente final, no cargo, na "
-                + "descrição ou nos nomes dos requisitos. Para várias tecnologias, faça uma busca para cada";
+        static final String TERM = "Um único trecho a procurar na empresa, no cliente final, no cargo, no local "
+                + "de trabalho, na descrição ou nos nomes dos requisitos. Para várias tecnologias, faça uma busca para cada";
     }
 
     // ---------- parâmetros da edição
@@ -127,6 +134,8 @@ final class JobApplicationToolDescriptions {
                 + "faixa salarial sem contrato)";
         static final String SALARY_RANGE = "Nova faixa salarial; exige contrato na candidatura (o atual ou um "
                 + "novo); texto vazio remove";
+        static final String WORK_MODEL = "Novo modelo de trabalho. " + WORK_MODELS;
+        static final String LOCATION = "Novo local de trabalho; texto vazio remove";
         static final String LINK = "Novo link; texto vazio remove";
         static final String DESCRIPTION = "Nova descrição completa da vaga, sem resumir. Exige requirements";
         static final String REQUIREMENTS = JobApplicationToolDescriptions.REQUIREMENTS

@@ -2,6 +2,7 @@ package silas.yudi.applytrackmcp.adapter.out.dynamodb;
 
 import silas.yudi.applytrackmcp.domain.model.JobPosting;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
+import silas.yudi.applytrackmcp.domain.model.WorkModel;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 
 import java.util.List;
@@ -16,6 +17,8 @@ public class JobPostingItem {
     private String seniority;
     private String contractType;
     private String salaryRange;
+    private WorkModel workModel;
+    private String location;
     private String link;
     private String description;
     private List<RequirementItem> requirements;
@@ -28,6 +31,8 @@ public class JobPostingItem {
         item.setSeniority(posting.seniority());
         item.setContractType(posting.contractType());
         item.setSalaryRange(posting.salaryRange());
+        item.setWorkModel(posting.workModel());
+        item.setLocation(posting.location());
         item.setLink(posting.link());
         item.setDescription(posting.description());
         item.setRequirements(toItems(posting.requirements()));
@@ -35,7 +40,7 @@ public class JobPostingItem {
     }
 
     JobPosting toDomain() {
-        return new JobPosting(company, finalClient, jobTitle, seniority, contractType, salaryRange, link, description, toRequirements(requirements));
+        return new JobPosting(company, finalClient, jobTitle, seniority, contractType, salaryRange, workModel, location, link, description, toRequirements(requirements));
     }
 
     private static List<RequirementItem> toItems(List<Requirement> requirements) {
@@ -93,6 +98,22 @@ public class JobPostingItem {
 
     public void setSalaryRange(String salaryRange) {
         this.salaryRange = salaryRange;
+    }
+
+    public WorkModel getWorkModel() {
+        return workModel;
+    }
+
+    public void setWorkModel(WorkModel workModel) {
+        this.workModel = workModel;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     public String getLink() {

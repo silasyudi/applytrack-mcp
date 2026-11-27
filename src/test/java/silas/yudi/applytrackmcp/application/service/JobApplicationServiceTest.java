@@ -20,6 +20,7 @@ import silas.yudi.applytrackmcp.domain.model.ProcessStep;
 import silas.yudi.applytrackmcp.domain.model.Requirement;
 import silas.yudi.applytrackmcp.domain.model.StepChange;
 import silas.yudi.applytrackmcp.domain.model.StepState;
+import silas.yudi.applytrackmcp.domain.model.WorkModel;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -191,6 +192,22 @@ class JobApplicationServiceTest {
             assertThat(service.search(term)).containsExactly(inTitle);
         }
 
+        @ParameterizedTest
+        @ValueSource(strings = {"São Paulo", "sao paulo", "SP", " PAULO "})
+        void findsTermOnlyInLocationIgnoringCaseAndAccents(String term) {
+            var inLocation = new JobApplication(
+                    aPosting()
+                            .company("Gama")
+                            .jobTitle("Analista")
+                            .location("São Paulo, SP")
+                            .description("Vaga administrativa")
+                            .build(),
+                    ApplicationProcess.start("Gupy", LocalDate.of(2026, 11, 20)));
+            when(repository.findAll()).thenReturn(List.of(acme, inLocation));
+
+            assertThat(service.search(term)).containsExactly(inLocation);
+        }
+
         // O título pode ser genérico, e a stack aparecer só na descrição
         @ParameterizedTest
         @ValueSource(strings = {"Kafka", "kafka", "microsservicos", "MICROSSERVIÇOS", " Spring Boot "})
@@ -268,9 +285,9 @@ class JobApplicationServiceTest {
             assertThat(service.search("kafka")).containsExactly(both);
         }
 
-        // Só empresa, cliente final, cargo, descrição e nomes dos requisitos entram na busca
+        // Só empresa, cliente final, cargo, local, descrição e nomes dos requisitos entram na busca
         @ParameterizedTest
-        @ValueSource(strings = {"Pleno", "CLT", "9.000", "https", "Gupy", "2026", "Entrevista", "Avançado", "REQUIRED",
+        @ValueSource(strings = {"Pleno", "CLT", "9.000", "HYBRID", "https", "Gupy", "2026", "Entrevista", "Avançado", "REQUIRED",
                 "Feita"})
         void doesNotSearchByOtherFields(String term) {
             var detailed = new JobApplication(
@@ -278,6 +295,7 @@ class JobApplicationServiceTest {
                             .seniority("Pleno")
                             .contractType("CLT")
                             .salaryRange("R$ 9.000")
+                            .workModel(WorkModel.HYBRID)
                             .link("https://acme.com/jobs/1")
                             .description("Full description")
                             .requirements(List.of(new Requirement("Java", "Avançado", Importance.REQUIRED)))

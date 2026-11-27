@@ -12,7 +12,7 @@ A IA consulta as candidaturas registradas e responde perguntas que exigem cruzar
 **Registrar e atualizar**
 
 - "Me candidatei nessa vaga pelo LinkedIn hoje" (com o anúncio colado). A IA extrai empresa, cargo, contrato, faixa
-  salarial e requisitos
+  salarial, modelo de trabalho, local e requisitos
 - "Marcaram a entrevista técnica da Acme para quinta às 14h"
 - "Recebi um teste técnico da Beta para entregar até sexta"
 - "Fiz o fit cultural hoje, ficaram de responder até segunda"
@@ -26,6 +26,8 @@ A IA consulta as candidaturas registradas e responde perguntas que exigem cruzar
 - "Quais etapas estão esperando por mim?"
 - "Quais empresas prometeram retorno e já passaram do prazo?"
 - "Quais candidaturas estão sem resposta há mais de duas semanas?"
+- "Quantos dos processos em andamento são remotos?"
+- "Quais processos ativos são híbridos e em que cidade?"
 - "Me dá um resumo dos processos em andamento"
 
 **Consultar e analisar**
@@ -47,7 +49,8 @@ A IA consulta as candidaturas registradas e responde perguntas que exigem cruzar
 
 Cada candidatura tem uma vaga e um processo.
 
-- Vaga: empresa, cliente final, cargo, senioridade, contrato, faixa salarial, link, descrição e requisitos
+- Vaga: empresa, cliente final, cargo, senioridade, contrato, faixa salarial, modelo de trabalho (remoto, híbrido ou
+  presencial), local, link, descrição e requisitos
 - Processo: plataforma, data da candidatura, situação, observações e etapas
 
 As etapas têm nome livre, datas opcionais e um destes estados.
@@ -154,7 +157,7 @@ claude mcp add applytrack --scope user -- java -jar /caminho/applytrack-mcp.jar
 | Tool | Descrição |
 |---|---|
 | `register_job_application` | Registra uma candidatura |
-| `search_job_applications` | Busca por empresa, cliente final, cargo, descrição ou requisito, ou lista todas |
+| `search_job_applications` | Busca por empresa, cliente final, cargo, local, descrição ou requisito, ou lista todas |
 | `get_job_application` | Retorna uma candidatura completa |
 | `update_job_application` | Altera os campos informados |
 | `add_job_application_step` | Adiciona uma etapa |
