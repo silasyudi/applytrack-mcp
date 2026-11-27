@@ -210,7 +210,7 @@ Estrutura (arquitetura hexagonal)
 
 - `domain`: modelo e regras, sem framework
 - `application`: casos de uso e porta do repositório
-- `adapter`: tools MCP (Spring AI) e DynamoDB (AWS SDK)
+- `adapter`: tools MCP (Spring AI) e DynamoDB (AWS SDK). As tools chamam o serviço direto, sem porta de entrada
 - `config`: beans do Spring
 
 ## Licença

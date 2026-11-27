@@ -12,19 +12,25 @@
     <artifactId>applytrack-mcp</artifactId>
     <version>0.1.0</version>
     <name>applytrack-mcp</name>
-    <description>applytrack-mcp</description>
-    <url/>
+    <description>MCP server to track job applications by chatting with an AI assistant</description>
+    <url>https://github.com/silasyudi/applytrack-mcp</url>
     <licenses>
-        <license/>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/license/mit</url>
+        </license>
     </licenses>
     <developers>
-        <developer/>
+        <developer>
+            <id>silasyudi</id>
+            <name>Silas Yudi</name>
+            <url>https://www.linkedin.com/in/silasyudi/</url>
+        </developer>
     </developers>
     <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
+        <connection>scm:git:https://github.com/silasyudi/applytrack-mcp.git</connection>
+        <developerConnection>scm:git:git@github.com:silasyudi/applytrack-mcp.git</developerConnection>
+        <url>https://github.com/silasyudi/applytrack-mcp</url>
     </scm>
     <properties>
         <java.version>25</java.version>
